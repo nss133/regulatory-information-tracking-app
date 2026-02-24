@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ subject }}</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #111; }
+      .meta { color: #555; font-size: 12px; margin-bottom: 18px; }
+      .source { margin-top: 22px; }
+      .source h2 { font-size: 16px; margin: 0 0 10px; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #ddd; margin-right: 6px; }
+      .high { border-color: #b91c1c; color: #b91c1c; }
+      .medium { border-color: #b45309; color: #b45309; }
+      .low { border-color: #6b7280; color: #6b7280; }
+      .kind { border-color: #2563eb; color: #2563eb; }
+      ul { padding-left: 18px; margin: 8px 0 0; }
+      li { margin: 10px 0; }
+      .title { font-weight: 600; }
+      .sub { color: #555; font-size: 12px; margin-top: 4px; }
+      a { color: #0a58ca; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .hr { border-top: 1px solid #eee; margin-top: 16px; }
+      .muted { color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="meta">
+      <div><b>기준일</b>: {{ run_date }}</div>
+      <div class="muted">신규/변경된 항목만 포함합니다.</div>
+    </div>
+
+    {% if errors and errors|length > 0 %}
+      <div class="meta">
+        <div><b>수집 오류</b></div>
+        <ul>
+          {% for e in errors %}
+            <li class="muted">{{ e }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    {% for sec in sections %}
+      <div class="source">
+        <h2>중요도: {{ sec.label }}</h2>
+
+        {% if sec.items|length == 0 %}
+          <div class="muted">해당 중요도 항목 없음</div>
+        {% else %}
+          <ul>
+            {% for it in sec.items %}
+              <li>
+                <span class="badge {{ it.importance }}">{{ it.importance|upper }}</span>
+                <span class="badge kind">{{ it.category_label }}</span>
+                <span class="badge">{{ it.source_name_ko }} ({{ it.source_code }})</span>
+                {% if it.is_updated %}
+                  <span class="badge">변경</span>
+                {% else %}
+                  <span class="badge">신규</span>
+                {% endif %}
+                <a class="title" href="{{ it.url }}">{{ it.title }}</a>
+                <div class="sub">
+                  {% if it.published_at %}{{ it.published_at }} · {% endif %}
+                  {{ it.reason }}
+                </div>
+                {% if it.attachments|length > 0 %}
+                  <div class="sub">
+                    첨부:
+                    {% for a in it.attachments %}
+                      <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <div class="hr"></div>
+      </div>
+    {% endfor %}
+  </body>
+</html>
+

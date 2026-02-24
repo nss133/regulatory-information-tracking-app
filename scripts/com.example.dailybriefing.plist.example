@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.example.dailybriefing</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-lc</string>
+      <string>/Users/REPLACE_ME/path/to/news clipping/scripts/run_daily.sh</string>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>/Users/REPLACE_ME/path/to/news clipping/logs/briefing.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/REPLACE_ME/path/to/news clipping/logs/briefing.err.log</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>8</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+  </dict>
+</plist>
+

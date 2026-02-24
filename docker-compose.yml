@@ -1,0 +1,12 @@
+services:
+  briefing:
+    build: .
+    command: ["run", "--config", "/config/config.yaml"]
+    environment:
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ./data:/app/data
+    restart: "no"
+

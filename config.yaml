@@ -1,0 +1,74 @@
+timezone: Asia/Seoul
+
+storage:
+  sqlite_path: data/briefing.sqlite3
+
+fetch:
+  user_agent: "DailyRegulatoryBriefing/0.1 (+internal monitoring)"
+  max_items_per_source: 50
+  request_timeout_seconds: 20
+
+email:
+  enabled: true
+  subject_prefix: "[Daily Briefing]"
+  from_name: "Daily Briefing Bot"
+  from_email: "curraheec@gmail.com"
+  to:
+    - "curraheec@gmail.com"
+    - "yehwa0866@miraeasset.com"
+    - "shemile@miraeasset.com"
+    - "crazy426@miraeasset.com"
+    - "cov1255@miraeasset.com"
+  smtp:
+    host: "smtp.gmail.com"
+    port: 587
+    user: "curraheec@gmail.com"
+    password_env: "GMAIL_APP_PASSWORD"
+
+ranking:
+  # 제목/본문에 포함되면 가중치를 높입니다.
+  high_keywords:
+    - "보험"
+    - "보험업법"
+    - "지급여력"
+    - "RBC"
+    - "IFRS17"
+    - "자본시장법"
+    - "자본시장과 금융투자업에 관한 법률"
+    - "금융소비자 보호에 관한 법률"
+    - "금융회사의 지배구조에 관한 법률"
+    - "상법"
+    - "개인정보"
+    - "유출"
+    - "과징금"
+    - "시정명령"
+    - "제재"
+    - "담합"
+    - "표시·광고"
+    - "약관"
+    - "마이데이터"
+    - "감독규정"
+    - "행정지도"
+    - "산재"
+    - "근로시간"
+    - "차별"
+  medium_keywords:
+    - "가이드라인"
+    - "설명자료"
+    - "해명자료"
+    - "입법예고"
+    - "행정예고"
+    - "고시"
+    - "규정변경예고"
+
+# published_at이 N일 이내인 항목만 발송 (오래된 자료 제외). 기본 7일
+filter:
+  max_days_since_published: 7
+
+llm:
+  enabled: false
+  provider: "openai" # 현재는 옵션(ImportError 없이도 동작)
+  api_key_env: "OPENAI_API_KEY"
+  model: "gpt-4o-mini"
+  only_when_importance_at_least: "high"
+
