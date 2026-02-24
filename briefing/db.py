@@ -164,9 +164,10 @@ def select_pending_for_email(
             WHEN 'fss' THEN 2
             WHEN 'na' THEN 3
             WHEN 'kftc' THEN 4
-            WHEN 'pipc' THEN 5
-            WHEN 'moel' THEN 6
-            WHEN 'nhrck' THEN 7
+            WHEN 'kofiu' THEN 5
+            WHEN 'pipc' THEN 6
+            WHEN 'moel' THEN 7
+            WHEN 'nhrck' THEN 8
             ELSE 999
           END,
           id DESC

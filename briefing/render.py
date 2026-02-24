@@ -110,15 +110,16 @@ def render_email_html(
             )
         )
 
-    # 소스 우선순위: FSC > FSS > 국회(입법) > KFTC > PIPC > MOEL > NHRCK
+    # 소스 우선순위: FSC > FSS > 국회(입법) > KFTC > KoFIU > PIPC > MOEL > NHRCK
     source_order = {
         "fsc": 1,
         "fss": 2,
         "na": 3,
         "kftc": 4,
-        "pipc": 5,
-        "moel": 6,
-        "nhrck": 7,
+        "kofiu": 5,
+        "pipc": 6,
+        "moel": 7,
+        "nhrck": 8,
     }
 
     def _sort_key(x: RenderItem):

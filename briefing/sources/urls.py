@@ -16,3 +16,6 @@ KFTC_GOSI_LIST = "https://www.ftc.go.kr/www/selectBbsNttList.do"
 
 NA_MAIN = "https://likms.assembly.go.kr/bill/main.do"
 
+KOFIU_PRESS_LIST = "https://www.kofiu.go.kr/kor/notification/report.do"
+KOFIU_LAW_NOTICE_LIST = "https://www.kofiu.go.kr/kor/law/legislation_list.do"
+
