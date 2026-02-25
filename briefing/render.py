@@ -71,6 +71,15 @@ def render_email_html(
     )
     tpl = env.get_template("email.html.j2")
 
+    # 1단계: 개인정보 + (시민단체/간담회/행사) 조합은 목록에서 완전히 제외
+    def _should_exclude(it: StoredItem) -> bool:
+        title = (it.title or "").lower()
+        if "개인정보" not in title:
+            return False
+        return any(kw in title for kw in ["시민단체", "간담회", "행사"])
+
+    items = [it for it in items if not _should_exclude(it)]
+
     by_importance: dict[str, list[RenderItem]] = {"high": [], "medium": [], "low": []}
     # '규정/입법예고/법령/시행령/감독규정' 등 법·규정성 키워드가 있으면
     # 같은 중요도 안에서는 더 위에 보이도록 가중치를 줄 것입니다.
@@ -125,15 +134,38 @@ def render_email_html(
     }
 
     def _sort_key(x: RenderItem):
+        # 신규(처음 리포트) > 변경(기존 리포트 후 내용 변경)
+        new_score = 1 if not x.is_updated else 0
         # published_at이 None이면 뒤로
         dt = x.published_at or "0000-00-00"
         # 법·규정 키워드가 있으면 같은 그룹 내에서 더 위에 배치
         legal_score = 1 if any(k in x.title or k in x.reason for k in legal_keywords) else 0
-        return (legal_score, dt, -source_order.get(x.source_code, 999))
+        return (new_score, legal_score, dt, -source_order.get(x.source_code, 999))
 
-    # (1) 법·규정 키워드 유무 (2) 날짜 내림차순 (3) 소스 우선순위
+    # (1) 신규 여부 (2) 법·규정 키워드 유무 (3) 날짜 내림차순 (4) 소스 우선순위
     for k in list(by_importance.keys()):
         by_importance[k] = sorted(by_importance[k], key=_sort_key, reverse=True)
+
+    # MEDIUM 중요도 내에서, 거의 동일한 제목(공백/기호 무시)이 중복될 경우
+    # 가장 최신 항목만 남기고 나머지는 제거합니다.
+    def _dedupe_medium(items: list[RenderItem]) -> list[RenderItem]:
+        seen: set[str] = set()
+
+        def _norm_title(t: str) -> str:
+            # 한글/영문/숫자만 남기고 모두 제거하여, 기호·공백 차이는 무시
+            return "".join(ch for ch in t if ch.isalnum()).lower()
+
+        out: list[RenderItem] = []
+        for it in items:
+            key = _norm_title(it.title)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        return out
+
+    if by_importance.get("medium"):
+        by_importance["medium"] = _dedupe_medium(by_importance["medium"])
 
     sections: list[RenderSection] = [
         RenderSection(label="HIGH", items=by_importance.get("high", [])),

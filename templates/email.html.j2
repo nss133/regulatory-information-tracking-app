@@ -54,9 +54,7 @@
                 <span class="badge {{ it.importance }}">{{ it.importance|upper }}</span>
                 <span class="badge kind">{{ it.category_label }}</span>
                 <span class="badge">{{ it.source_name_ko }} ({{ it.source_code }})</span>
-                {% if it.is_updated %}
-                  <span class="badge">변경</span>
-                {% else %}
+                {% if not it.is_updated %}
                   <span class="badge">신규</span>
                 {% endif %}
                 <a class="title" href="{{ it.url }}">{{ it.title }}</a>
