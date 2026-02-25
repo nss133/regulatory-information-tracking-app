@@ -5,15 +5,16 @@ from urllib.parse import parse_qs, urlparse
 from briefing.http import HttpClient
 from briefing.sources.html import soupify
 from briefing.sources.registry import SourceConnector
-from briefing.sources.urls import KOFIU_LAW_NOTICE_LIST, KOFIU_PRESS_LIST
+from briefing.sources.urls import KOFIU_ANNOUNCE_LIST, KOFIU_LAW_NOTICE_LIST, KOFIU_PRESS_LIST
 from briefing.types import Category, FetchedItem
 from briefing.utils import normalize_ws, parse_yyyy_mm_dd
 
 
 class KofiuConnector(SourceConnector):
     """
-    금융정보분석원(KoFIU)
+    금융정보분석원(KoFIU) 법령정보
     - 보도자료: notification/report.do
+    - 공고/고시/훈령/예규: law/announce_list.do
     - 입법/규정변경 예고: law/legislation_list.do
     """
 
@@ -30,6 +31,13 @@ class KofiuConnector(SourceConnector):
                 KOFIU_PRESS_LIST,
                 category="press",
                 key_prefix="press:",
+            )
+        )
+        items.extend(
+            self._fetch_list(
+                KOFIU_ANNOUNCE_LIST,
+                category="admin_notice",
+                key_prefix="announce:",
             )
         )
         items.extend(

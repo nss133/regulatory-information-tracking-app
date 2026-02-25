@@ -7,6 +7,8 @@ from briefing.config import load_config
 from briefing.db import (
     connect,
     init_db,
+    mark_old_kofiu_announce_as_sent,
+    mark_old_scourt_as_sent,
     mark_sent,
     select_last_sent_batch,
     select_pending_for_email,
@@ -123,6 +125,8 @@ def cmd_preview(args) -> int:
         except Exception as e:
             errors.append(f"{c.code}: {e}")
     upsert_items(conn, fetched, tz_name=cfg.timezone)
+    mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
+    mark_old_scourt_as_sent(conn, tz_name=cfg.timezone)
 
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
@@ -154,7 +158,18 @@ def _enrich(conn, cfg, items) -> None:
         reason = rank.reason
         summary = None
 
-        # LLM 옵션: 중요도 기준 충족 시 본문을 가져와 요약/중요도 보정
+        # 대법원은 요약 없이 제목/중요도/첨부만 사용
+        if it.source == "scourt":
+            update_item_enrichment(
+                conn,
+                item_id=it.id,
+                importance=importance,
+                importance_reason=reason,
+                summary=None,
+            )
+            continue
+
+        # LLM 옵션: 켜져 있을 때만 요약/중요도 보정 (현재는 요약 비표시)
         if should_call_llm(llm=cfg.llm, current_importance=importance):
             body = extract_main_text(http, it.url)
             spec = SOURCE_SPECS.get(it.source)
@@ -168,16 +183,6 @@ def _enrich(conn, cfg, items) -> None:
                 importance = res.importance
             if res.reason:
                 reason = res.reason
-            if res.summary:
-                summary = res.summary
-        else:
-            # LLM이 꺼져 있어도 High/Medium은 본문 일부를 뽑아 간단 요약을 붙임
-            if importance in ("high", "medium"):
-                try:
-                    body = extract_main_text(http, it.url)
-                    summary = _heuristic_summary(body)
-                except Exception:
-                    summary = None
 
         update_item_enrichment(
             conn,
@@ -204,6 +209,16 @@ def cmd_run(args) -> int:
             errors.append(f"{c.code}: {e}")
 
     upsert_items(conn, fetched, tz_name=cfg.timezone)
+
+    # KoFIU 공고/고시/훈령/예규: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
+    n_marked_kofiu = mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
+    if n_marked_kofiu:
+        print(f"KoFIU 공고/고시/훈령/예규 기존 자료 {n_marked_kofiu}건 발송 제외(앞으로 업데이트분만 반영)")
+
+    # 대법원 보도자료/주요판결: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
+    n_marked_scourt = mark_old_scourt_as_sent(conn, tz_name=cfg.timezone)
+    if n_marked_scourt:
+        print(f"대법원 기존 자료 {n_marked_scourt}건 발송 제외(앞으로 업데이트분만 반영)")
 
     # 2) 발송 대상
     pending = select_pending_for_email(

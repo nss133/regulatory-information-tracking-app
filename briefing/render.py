@@ -44,6 +44,7 @@ def _category_label(cat: str) -> str:
         "press": "보도자료",
         "legislation": "입법/예고",
         "admin_notice": "행정예고",
+        "case_law": "주요판결",
         "other": "기타",
     }.get(cat, cat)
 
@@ -110,16 +111,17 @@ def render_email_html(
             )
         )
 
-    # 소스 우선순위: FSC > FSS > 국회(입법) > KFTC > KoFIU > PIPC > MOEL > NHRCK
+    # 소스 우선순위: FSC > FSS > 국회(입법) > KFTC > KoFIU > 대법원 > PIPC > MOEL > NHRCK
     source_order = {
         "fsc": 1,
         "fss": 2,
         "na": 3,
         "kftc": 4,
         "kofiu": 5,
-        "pipc": 6,
-        "moel": 7,
-        "nhrck": 8,
+        "scourt": 6,
+        "pipc": 7,
+        "moel": 8,
+        "nhrck": 9,
     }
 
     def _sort_key(x: RenderItem):
