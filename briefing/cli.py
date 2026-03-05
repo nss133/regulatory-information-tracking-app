@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from briefing.config import load_config
@@ -10,6 +11,7 @@ from briefing.db import (
     mark_old_kofiu_announce_as_sent,
     mark_old_scourt_as_sent,
     mark_sent,
+    reset_sent_after,
     select_last_sent_batch,
     select_pending_for_email,
     upsert_items,
@@ -243,6 +245,23 @@ def cmd_run(args) -> int:
     )
     text = _render_text(pending)
 
+    # 수집 오류가 있으면 먼저 리포트하고, 발송 여부를 확인
+    if errors:
+        print("수집 오류:")
+        for e in errors:
+            print(f"  - {e}")
+        send_anyway = getattr(args, "send_anyway", False)
+        if not send_anyway:
+            if sys.stdin.isatty():
+                try:
+                    answer = input("그래도 발송하시겠습니까? (y/N): ").strip().lower()
+                    send_anyway = answer in ("y", "yes")
+                except (EOFError, KeyboardInterrupt):
+                    send_anyway = False
+            if not send_anyway:
+                print("수집 오류가 있어 발송을 건너뜁니다. 강제 발송: --send-anyway")
+                return 1
+
     if cfg.email.enabled:
         send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text)
         mark_sent(conn, [it.id for it in pending], tz_name=cfg.timezone)
@@ -252,9 +271,17 @@ def cmd_run(args) -> int:
         print(text)
 
     if errors:
-        print("수집 에러(발송에는 반영되지 않았을 수 있음):")
-        for e in errors:
-            print(f"- {e}")
+        print("(참고) 수집 오류가 있었으나 발송은 완료되었습니다.")
+    return 0
+
+
+def cmd_reset_sent(args) -> int:
+    """지정한 날짜 이후 발송 처리된 항목을 미발송으로 되돌립니다. (재발송 전 초기화용)"""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    n = reset_sent_after(conn, args.after_date)
+    print(f"발송 상태 초기화: {args.after_date} 이후 발송분 {n}건 → 미발송으로 되돌림")
     return 0
 
 
@@ -300,12 +327,27 @@ def build_parser() -> argparse.ArgumentParser:
         ("list", cmd_list),
         ("preview", cmd_preview),
         ("run", cmd_run),
+        ("reset-sent", cmd_reset_sent),
         ("resend-last", cmd_resend_last),
     ]:
         sp = sub.add_parser(name)
         sp.add_argument("--config", required=True, help="config.yaml 경로")
         if name == "preview":
             sp.add_argument("--out", required=True, help="HTML 저장 경로")
+        if name == "run":
+            sp.add_argument(
+                "--send-anyway",
+                action="store_true",
+                dest="send_anyway",
+                help="수집 오류가 있어도 확인 없이 발송 (cron/자동 실행용)",
+            )
+        if name == "reset-sent":
+            sp.add_argument(
+                "--after-date",
+                required=True,
+                metavar="YYYY-MM-DD",
+                help="이 날짜 이후 발송된 항목을 미발송으로 되돌림",
+            )
         sp.set_defaults(_fn=fn)
     return p
 

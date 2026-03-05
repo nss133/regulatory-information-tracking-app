@@ -355,3 +355,21 @@ def mark_old_scourt_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
     conn.commit()
     return cur.rowcount
 
+
+def reset_sent_after(conn: sqlite3.Connection, after_date: str) -> int:
+    """
+    지정한 날짜 이후로 발송 처리된 항목을 미발송 상태로 되돌립니다.
+    after_date: 'YYYY-MM-DD'. last_sent_at이 이 날짜 이상인 행의 last_sent_at, sent_hash를 NULL로.
+    """
+    cur = conn.execute(
+        """
+        UPDATE items
+        SET last_sent_at = NULL,
+            sent_hash = NULL
+        WHERE date(last_sent_at) >= date(:after_date)
+        """,
+        {"after_date": after_date},
+    )
+    conn.commit()
+    return cur.rowcount
+

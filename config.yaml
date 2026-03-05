@@ -19,6 +19,7 @@ email:
     - "shemile@miraeasset.com"
     - "crazy426@miraeasset.com"
     - "cov1255@miraeasset.com"
+    - "namsu.son@miraeasset.com"
   smtp:
     host: "smtp.gmail.com"
     port: 587
@@ -38,7 +39,6 @@ ranking:
     - "금융소비자 보호에 관한 법률"
     - "금융회사의 지배구조에 관한 법률"
     - "상법"
-    - "개인정보"
     - "유출"
     - "과징금"
     - "시정명령"
@@ -47,7 +47,6 @@ ranking:
     - "감독규정"
     - "행정지도"
     - "근로시간"
-    - "차별"
     # 사용자가 추가 요청한 HIGH 키워드
     - "가이드라인"
     - "입법예고"
@@ -64,6 +63,8 @@ ranking:
     - "보험금"
     - "전원합의체"
   medium_keywords:
+    - "개인정보"
+    - "차별"
     - "설명자료"
     - "해명자료"
     - "행정예고"

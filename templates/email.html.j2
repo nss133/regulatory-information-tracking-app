@@ -22,6 +22,7 @@
       a:hover { text-decoration: underline; }
       .hr { border-top: 1px solid #eee; margin-top: 16px; }
       .muted { color: #666; }
+      .child-item { margin-left: 1.5em; margin-top: 6px; list-style-type: circle; }
     </style>
   </head>
   <body>
@@ -69,6 +70,33 @@
                       <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
                     {% endfor %}
                   </div>
+                {% endif %}
+                {% if it.child_items|length > 0 %}
+                  <ul class="child-item">
+                    {% for child in it.child_items %}
+                      <li>
+                        <span class="badge {{ child.importance }}">{{ child.importance|upper }}</span>
+                        <span class="badge kind">{{ child.category_label }}</span>
+                        <span class="badge">{{ child.source_name_ko }} ({{ child.source_code }})</span>
+                        {% if not child.is_updated %}
+                          <span class="badge">신규</span>
+                        {% endif %}
+                        <a class="title" href="{{ child.url }}">{{ child.title }}</a>
+                        <div class="sub">
+                          {% if child.published_at %}{{ child.published_at }} · {% endif %}
+                          {{ child.reason }}
+                        </div>
+                        {% if child.attachments|length > 0 %}
+                          <div class="sub">
+                            첨부:
+                            {% for a in child.attachments %}
+                              <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                          </div>
+                        {% endif %}
+                      </li>
+                    {% endfor %}
+                  </ul>
                 {% endif %}
               </li>
             {% endfor %}

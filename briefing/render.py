@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -18,7 +19,7 @@ class RenderAttachment:
     url: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class RenderItem:
     source_code: str
     source_name_ko: str
@@ -31,6 +32,7 @@ class RenderItem:
     summary: Optional[str]
     is_updated: bool
     attachments: list[RenderAttachment]
+    child_items: list["RenderItem"] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -71,12 +73,17 @@ def render_email_html(
     )
     tpl = env.get_template("email.html.j2")
 
-    # 1단계: 개인정보 + (시민단체/간담회/행사) 조합은 목록에서 완전히 제외
+    # 1단계: 일부 항목은 목록에서 완전히 제외
     def _should_exclude(it: StoredItem) -> bool:
-        title = (it.title or "").lower()
-        if "개인정보" not in title:
+        title = (it.title or "")
+        title_lower = title.lower()
+        if "시상" in title_lower:
+            return True
+        if any(kw in title_lower for kw in ["개소식", "공모전", "이러닝", "무료 상담", "무료상담", "응시"]):
+            return True
+        if "개인정보" not in title_lower:
             return False
-        return any(kw in title for kw in ["시민단체", "간담회", "행사"])
+        return any(kw in title_lower for kw in ["시민단체", "간담회", "행사"])
 
     items = [it for it in items if not _should_exclude(it)]
 
@@ -102,6 +109,11 @@ def render_email_html(
         ]
         is_updated = bool(it.last_sent_at) and (it.sent_hash != it.content_hash)
         importance = (it.importance or "low")
+        # 고용노동부: 체불 + 제재 동시에 나오면 LOW
+        if it.source == "moel" and it.title:
+            t = it.title
+            if "체불" in t and "제재" in t:
+                importance = "low"
         text_for_legal = f"{it.title} {it.importance_reason or ''}"
         has_legal = any(k in text_for_legal for k in legal_keywords)
         by_importance.setdefault(importance, []).append(
@@ -117,6 +129,7 @@ def render_email_html(
                 summary=it.summary,
                 is_updated=is_updated,
                 attachments=atts,
+                child_items=[],
             )
         )
 
@@ -146,6 +159,36 @@ def render_email_html(
     for k in list(by_importance.keys()):
         by_importance[k] = sorted(by_importance[k], key=_sort_key, reverse=True)
 
+    # 금융감독원(FSS) 자료가 금융위원회(FSC)와 60% 이상 제목 일치 시 FSC 하위로 들여쓰기
+    def _title_words(s: str) -> set[str]:
+        return set(re.findall(r"[\w]+", (s or "").lower()))
+
+    def _title_similarity(a: str, b: str) -> float:
+        wa, wb = _title_words(a), _title_words(b)
+        if not wa or not wb:
+            return 0.0
+        return len(wa & wb) / min(len(wa), len(wb))
+
+    for k in list(by_importance.keys()):
+        L = by_importance[k]
+        matched_fss_ids: set[int] = set()
+        for item in L:
+            if item.source_code != "fss":
+                continue
+            best_fsc: Optional[RenderItem] = None
+            best_sim = 0.0
+            for other in L:
+                if other.source_code != "fsc":
+                    continue
+                sim = _title_similarity(item.title, other.title)
+                if sim >= 0.6 and sim > best_sim:
+                    best_sim = sim
+                    best_fsc = other
+            if best_fsc is not None:
+                best_fsc.child_items.append(item)
+                matched_fss_ids.add(id(item))
+        by_importance[k] = [i for i in L if id(i) not in matched_fss_ids]
+
     # MEDIUM 중요도 내에서, 거의 동일한 제목(공백/기호 무시)이 중복될 경우
     # 가장 최신 항목만 남기고 나머지는 제거합니다.
     def _dedupe_medium(items: list[RenderItem]) -> list[RenderItem]:
@@ -166,6 +209,10 @@ def render_email_html(
 
     if by_importance.get("medium"):
         by_importance["medium"] = _dedupe_medium(by_importance["medium"])
+
+    # LOW 섹션: 신규 우선, 신규+기존 합쳐서 최대 10건만 표시
+    if by_importance.get("low"):
+        by_importance["low"] = by_importance["low"][:10]
 
     sections: list[RenderSection] = [
         RenderSection(label="HIGH", items=by_importance.get("high", [])),
