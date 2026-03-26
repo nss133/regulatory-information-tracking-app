@@ -189,6 +189,28 @@ def render_email_html(
                 matched_fss_ids.add(id(item))
         by_importance[k] = [i for i in L if id(i) not in matched_fss_ids]
 
+    # 같은 부처 내에서 보도자료와 입법/행정예고의 제목 유사도가 60% 이상이면
+    # 입법/행정예고를 보도자료 하위로 들여쓰기
+    for k in list(by_importance.keys()):
+        L = by_importance[k]
+        child_ids: set[int] = set()
+        for item in L:
+            if item.category_label != "보도자료":
+                continue
+            for other in L:
+                if id(other) == id(item):
+                    continue
+                if other.source_code != item.source_code:
+                    continue
+                if other.category_label not in ("입법/예고", "행정예고"):
+                    continue
+                if id(other) in child_ids:
+                    continue
+                if _title_similarity(item.title, other.title) >= 0.6:
+                    item.child_items.append(other)
+                    child_ids.add(id(other))
+        by_importance[k] = [i for i in L if id(i) not in child_ids]
+
     # MEDIUM 중요도 내에서, 거의 동일한 제목(공백/기호 무시)이 중복될 경우
     # 가장 최신 항목만 남기고 나머지는 제거합니다.
     def _dedupe_medium(items: list[RenderItem]) -> list[RenderItem]:
