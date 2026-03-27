@@ -13,6 +13,32 @@ class RankResult:
     reason: str
 
 
+def _all_in(keywords: tuple[str, ...], hay: str) -> bool:
+    return all(k.lower() in hay for k in keywords)
+
+
+def _apply_combo_rules(base: RankResult, hay: str, cfg: RankingConfig) -> RankResult:
+    """config에 정의된 조합 규칙을 적용해 등급을 조정합니다."""
+    # 강등 규칙: HIGH/MEDIUM → LOW (가장 높은 우선순위)
+    for combo in cfg.combo_rules.demote_to_low:
+        if _all_in(combo, hay):
+            return RankResult(importance="low", reason=f"키워드조합(하): {', '.join(combo)}")
+
+    # 강등 규칙: HIGH → MEDIUM
+    if base.importance == "high":
+        for combo in cfg.combo_rules.demote_to_medium:
+            if _all_in(combo, hay):
+                return RankResult(importance="medium", reason=f"키워드조합(중): {', '.join(combo)}")
+
+    # 승격 규칙: MEDIUM/LOW → HIGH
+    if base.importance != "high":
+        for combo in cfg.combo_rules.promote_to_high:
+            if _all_in(combo, hay):
+                return RankResult(importance="high", reason=f"키워드조합(상): {', '.join(combo)}")
+
+    return base
+
+
 def rank_item(*, title: str, raw_text: Optional[str], cfg: RankingConfig) -> RankResult:
     hay = f"{title}\n{raw_text or ''}".lower()
 
@@ -40,11 +66,15 @@ def rank_item(*, title: str, raw_text: Optional[str], cfg: RankingConfig) -> Ran
         if any(k.lower() == "제재" for k in high_hits) and ("하도급" in hay or "하도급법" in hay):
             return RankResult(importance="medium", reason="키워드(중): 제재(하도급)")
 
-        return RankResult(importance="high", reason=f"키워드(상): {', '.join(high_hits[:6])}")
+        base = RankResult(importance="high", reason=f"키워드(상): {', '.join(high_hits[:6])}")
+    else:
+        med_hits = [k for k in cfg.medium_keywords if k.lower() in hay]
+        if len(med_hits) >= 2:
+            base = RankResult(importance="high", reason=f"키워드조합 승격(상): {', '.join(med_hits[:6])}")
+        elif med_hits:
+            base = RankResult(importance="medium", reason=f"키워드(중): {', '.join(med_hits[:6])}")
+        else:
+            base = RankResult(importance="low", reason="키워드 매칭 없음")
 
-    med_hits = [k for k in cfg.medium_keywords if k.lower() in hay]
-    if med_hits:
-        return RankResult(importance="medium", reason=f"키워드(중): {', '.join(med_hits[:6])}")
-
-    return RankResult(importance="low", reason="키워드 매칭 없음")
+    return _apply_combo_rules(base, hay, cfg)
 

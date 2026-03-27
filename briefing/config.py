@@ -79,9 +79,18 @@ class StorageConfig:
 
 
 @dataclass(frozen=True)
+class ComboRules:
+    """키워드 조합 규칙. 모든 키워드가 동시에 있을 때 등급을 올리거나 내립니다."""
+    promote_to_high: list[tuple[str, ...]]    # 비-HIGH → HIGH 승격
+    demote_to_medium: list[tuple[str, ...]]   # HIGH → MEDIUM 강등
+    demote_to_low: list[tuple[str, ...]]      # HIGH/MEDIUM → LOW 강등
+
+
+@dataclass(frozen=True)
 class RankingConfig:
     high_keywords: list[str]
     medium_keywords: list[str]
+    combo_rules: ComboRules
 
 
 @dataclass(frozen=True)
@@ -121,6 +130,17 @@ def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     return d[key]
 
 
+def _load_combo_rules(raw: dict) -> ComboRules:
+    def _parse(key: str) -> list[tuple[str, ...]]:
+        return [tuple(str(k) for k in combo) for combo in raw.get(key, [])]
+
+    return ComboRules(
+        promote_to_high=_parse("promote_to_high"),
+        demote_to_medium=_parse("demote_to_medium"),
+        demote_to_low=_parse("demote_to_low"),
+    )
+
+
 def load_config(path: str | Path) -> AppConfig:
     p = Path(path)
     raw = yaml.safe_load(p.read_text(encoding="utf-8"))
@@ -145,7 +165,7 @@ def load_config(path: str | Path) -> AppConfig:
         ),
         email=EmailConfig(
             enabled=bool(_get(email_raw, "enabled", True)),
-            subject_prefix=str(_get(email_raw, "subject_prefix", "[Daily Briefing]")),
+            subject_prefix=str(_get(email_raw, "subject_prefix", "[금융규제 모니터링]")),
             from_name=str(_get(email_raw, "from_name")),
             from_email=str(_get(email_raw, "from_email")),
             to=list(_get(email_raw, "to")),
@@ -159,6 +179,7 @@ def load_config(path: str | Path) -> AppConfig:
         ranking=RankingConfig(
             high_keywords=list(_get(ranking_raw, "high_keywords", [])),
             medium_keywords=list(_get(ranking_raw, "medium_keywords", [])),
+            combo_rules=_load_combo_rules(ranking_raw.get("combo_rules", {})),
         ),
         filter_config=FilterConfig(
             max_days_since_published=int(

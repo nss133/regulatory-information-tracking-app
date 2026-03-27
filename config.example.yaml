@@ -10,8 +10,8 @@ fetch:
 
 email:
   enabled: true
-  subject_prefix: "[Daily Briefing]"
-  from_name: "Daily Briefing Bot"
+  subject_prefix: "[금융규제 모니터링]"
+  from_name: "금융규제 모니터링"
   from_email: "your.address@gmail.com"
   to:
     - "recipient1@example.com"
@@ -56,6 +56,18 @@ ranking:
     - "행정예고"
     - "고시"
     - "규정변경예고"
+
+  # 키워드 조합 규칙: 목록 내 모든 키워드가 동시에 있을 때 등급을 조정합니다.
+  combo_rules:
+    promote_to_high:
+      - ["개인정보", "과징금"]
+      - ["개인정보", "유출"]
+      - ["담합", "과징금"]
+    demote_to_medium:
+      []
+    demote_to_low:
+      - ["가이드라인", "채용"]
+      - ["가이드라인", "예산"]
 
 # published_at이 N일 이내인 항목만 발송 (오래된 자료 제외). 기본 7일
 filter:
