@@ -20,6 +20,11 @@ email:
     - "crazy426@miraeasset.com"
     - "cov1255@miraeasset.com"
     - "namsu.son@miraeasset.com"
+    - "suyoung@miraeasset.com"
+    - "mk.lee@miraeasset.com"
+    - "yu.chung@miraeasset.com"
+    - "changoh.hong@miraeasset.com"
+    - "ChangGi.Lim@miraeasset.com"
   smtp:
     host: "smtp.gmail.com"
     port: 587
