@@ -25,6 +25,8 @@ SOURCE_SPECS: dict[SourceCode, SourceSpec] = {
     "moel": SourceSpec(code="moel", name_ko="고용노동부"),
     "nhrck": SourceSpec(code="nhrck", name_ko="국가인권위원회"),
     "kftc": SourceSpec(code="kftc", name_ko="공정거래위원회"),
+    "kofiu": SourceSpec(code="kofiu", name_ko="금융정보분석원"),
     "na": SourceSpec(code="na", name_ko="국회(의안정보시스템)"),
+    "scourt": SourceSpec(code="scourt", name_ko="대법원"),
 }
 

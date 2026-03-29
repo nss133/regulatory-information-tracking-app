@@ -16,3 +16,14 @@ KFTC_GOSI_LIST = "https://www.ftc.go.kr/www/selectBbsNttList.do"
 
 NA_MAIN = "https://likms.assembly.go.kr/bill/main.do"
 
+KOFIU_PRESS_LIST = "https://www.kofiu.go.kr/kor/notification/report.do"
+KOFIU_ANNOUNCE_LIST = "https://www.kofiu.go.kr/kor/law/announce_list.do"   # 공고/고시/훈령/예규
+KOFIU_LAW_NOTICE_LIST = "https://www.kofiu.go.kr/kor/law/legislation_list.do"  # 입법/규정변경 예고
+
+SCOURT_PRESS_LIST = "https://www.scourt.go.kr/portal/news/NewsListAction.work?gubun=4&type=0"
+SCOURT_MAJOR_DECISIONS_LIST = (
+    "https://library.scourt.go.kr/search/judg/result?"
+    "display=10&orderby=DESC&orderby_item=DECI_DATE&"
+    "pageNo=1&search_category=3%2C4%2C5%2C6&search_kind=2&search_mode=detail"
+)
+

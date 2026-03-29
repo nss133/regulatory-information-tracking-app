@@ -164,9 +164,11 @@ def select_pending_for_email(
             WHEN 'fss' THEN 2
             WHEN 'na' THEN 3
             WHEN 'kftc' THEN 4
-            WHEN 'pipc' THEN 5
-            WHEN 'moel' THEN 6
-            WHEN 'nhrck' THEN 7
+            WHEN 'kofiu' THEN 5
+            WHEN 'scourt' THEN 6
+            WHEN 'pipc' THEN 7
+            WHEN 'moel' THEN 8
+            WHEN 'nhrck' THEN 9
             ELSE 999
           END,
           id DESC
@@ -306,4 +308,68 @@ def mark_sent(conn: sqlite3.Connection, item_ids: Iterable[str], *, tz_name: str
         [{"id": i, "now": now} for i in item_ids],
     )
     conn.commit()
+
+
+def mark_old_kofiu_announce_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
+    """
+    KoFIU 공고/고시/훈령/예규 중, 오늘 이전에 게시된 미발송 건은
+    발송하지 않고 '이미 발송함'으로만 표시한다. 앞으로 올라오는 신규/변경분만 브리핑에 포함.
+    """
+    now = now_iso(tz_name)
+    today = now[:10]  # YYYY-MM-DD
+    cur = conn.execute(
+        """
+        UPDATE items
+        SET last_sent_at = :now,
+            sent_hash = content_hash
+        WHERE source = 'kofiu'
+          AND source_item_key LIKE 'announce:%'
+          AND last_sent_at IS NULL
+          AND (published_at IS NULL OR published_at < :today)
+        """,
+        {"now": now, "today": today},
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def mark_old_scourt_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
+    """
+    대법원(보도자료/주요판결) 중, 오늘 이전에 게시된 미발송 건은
+    발송하지 않고 '이미 발송함'으로만 표시한다.
+    앞으로 올라오는 신규/변경분만 브리핑에 포함.
+    """
+    now = now_iso(tz_name)
+    today = now[:10]  # YYYY-MM-DD
+    cur = conn.execute(
+        """
+        UPDATE items
+        SET last_sent_at = :now,
+            sent_hash = content_hash
+        WHERE source = 'scourt'
+          AND last_sent_at IS NULL
+          AND (published_at IS NULL OR published_at < :today)
+        """,
+        {"now": now, "today": today},
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def reset_sent_after(conn: sqlite3.Connection, after_date: str) -> int:
+    """
+    지정한 날짜 이후로 발송 처리된 항목을 미발송 상태로 되돌립니다.
+    after_date: 'YYYY-MM-DD'. last_sent_at이 이 날짜 이상인 행의 last_sent_at, sent_hash를 NULL로.
+    """
+    cur = conn.execute(
+        """
+        UPDATE items
+        SET last_sent_at = NULL,
+            sent_hash = NULL
+        WHERE date(last_sent_at) >= date(:after_date)
+        """,
+        {"after_date": after_date},
+    )
+    conn.commit()
+    return cur.rowcount
 

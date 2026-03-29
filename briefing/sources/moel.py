@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urljoin
 
 from briefing.http import HttpClient
 from briefing.sources.html import soupify
@@ -35,7 +35,8 @@ class MoelConnector(SourceConnector):
             title = normalize_ws(a.get_text(" ", strip=True))
             if not href or not title:
                 continue
-            url = href if href.startswith("http") else f"https://www.moel.go.kr{href}"
+            # 상대경로(`enewsView.do?...` 등)를 안전하게 절대 URL로 변환
+            url = href if href.startswith("http") else urljoin(MOEL_PRESS_LIST, href)
             qs = parse_qs(urlparse(url).query)
             news_seq = (qs.get("news_seq") or [None])[0]
             key = news_seq or url
@@ -68,7 +69,8 @@ class MoelConnector(SourceConnector):
             title = normalize_ws(a.get_text(" ", strip=True))
             if not href or not title:
                 continue
-            url = href if href.startswith("http") else f"https://www.moel.go.kr{href}"
+            # 상대경로(`/info/lawinfo/lawmaking/view.do` 등)를 안전하게 절대 URL로 변환
+            url = href if href.startswith("http") else urljoin(MOEL_LAWMAKING_LIST, href)
             qs = parse_qs(urlparse(url).query)
             bbs_seq = (qs.get("bbs_seq") or [None])[0]
             key = bbs_seq or url

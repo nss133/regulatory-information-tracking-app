@@ -10,8 +10,8 @@ fetch:
 
 email:
   enabled: true
-  subject_prefix: "[Daily Briefing]"
-  from_name: "Daily Briefing Bot"
+  subject_prefix: "[금융규제 모니터링]"
+  from_name: "금융규제 모니터링"
   from_email: "curraheec@gmail.com"
   to:
     - "curraheec@gmail.com"
@@ -19,6 +19,12 @@ email:
     - "shemile@miraeasset.com"
     - "crazy426@miraeasset.com"
     - "cov1255@miraeasset.com"
+    - "namsu.son@miraeasset.com"
+    - "suyoung@miraeasset.com"
+    - "mk.lee@miraeasset.com"
+    - "yu.chung@miraeasset.com"
+    - "changoh.hong@miraeasset.com"
+    - "ChangGi.Lim@miraeasset.com"
   smtp:
     host: "smtp.gmail.com"
     port: 587
@@ -28,38 +34,72 @@ email:
 ranking:
   # 제목/본문에 포함되면 가중치를 높입니다.
   high_keywords:
-    - "보험"
     - "보험업법"
-    - "지급여력"
-    - "RBC"
-    - "IFRS17"
     - "자본시장법"
     - "자본시장과 금융투자업에 관한 법률"
     - "금융소비자 보호에 관한 법률"
     - "금융회사의 지배구조에 관한 법률"
-    - "상법"
-    - "개인정보"
     - "유출"
     - "과징금"
     - "시정명령"
     - "제재"
-    - "담합"
-    - "표시·광고"
-    - "약관"
-    - "마이데이터"
     - "감독규정"
-    - "행정지도"
-    - "산재"
-    - "근로시간"
-    - "차별"
-  medium_keywords:
     - "가이드라인"
-    - "설명자료"
-    - "해명자료"
     - "입법예고"
-    - "행정예고"
     - "고시"
     - "규정변경예고"
+    - "자금세탁"
+    - "aml"
+    - "변호사"
+    - "금융소비자"
+    - "내부통제"
+    - "책무구조도"
+    - "보험금"
+    - "전원합의체"
+  medium_keywords:
+    - "보험"
+    - "지급여력"
+    - "RBC"
+    - "IFRS17"
+    - "상법"
+    - "약관"
+    - "행정지도"
+    - "변경예고"
+    - "근로시간"
+    - "acp"
+    - "개인정보"
+    - "차별"
+    - "설명자료"
+    - "해명자료"
+    - "행정예고"
+    - "담합"
+    - "표시·광고"
+    - "마이데이터"
+    - "산재"
+
+  # 키워드 조합 규칙: 목록 내 모든 키워드가 동시에 있을 때 등급을 조정합니다.
+  combo_rules:
+    # MEDIUM/LOW → HIGH 승격: 단독으로는 낮지만 조합 시 중요한 경우
+    promote_to_high:
+      - ["개인정보", "과징금"]          # 개인정보보호법 위반 제재
+      - ["개인정보", "유출"]             # 개인정보 침해 사고
+      - ["담합", "과징금"]               # 담합 제재 결정
+      - ["보험", "불완전판매"]           # 보험 소비자 피해
+      - ["내부통제", "제재"]             # 지배구조 위반 제재
+      - ["자금세탁", "제재"]             # AML 위반 제재
+      - ["약관", "시정명령"]             # 약관 시정명령
+      - ["가이드라인", "자본시장법"]     # 자본시장 관련 가이드라인
+      - ["가이드라인", "금융소비자"]     # 금융소비자 보호 가이드라인
+
+    # HIGH → MEDIUM 강등: HIGH 키워드가 있지만 중요도가 낮은 조합
+    demote_to_medium:
+      []  # 현재 없음 (필요 시 추가)
+
+    # HIGH/MEDIUM → LOW 강등: 무관한 맥락의 조합
+    demote_to_low:
+      - ["근로시간", "가이드라인"]       # 단순 근로시간 안내
+      - ["가이드라인", "채용"]           # 채용 관련 가이드라인
+      - ["가이드라인", "예산"]           # 예산 관련 가이드라인
 
 # published_at이 N일 이내인 항목만 발송 (오래된 자료 제외). 기본 7일
 filter:

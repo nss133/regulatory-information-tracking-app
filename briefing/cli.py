@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from briefing.config import load_config
 from briefing.db import (
     connect,
     init_db,
+    mark_old_kofiu_announce_as_sent,
+    mark_old_scourt_as_sent,
     mark_sent,
+    reset_sent_after,
     select_last_sent_batch,
     select_pending_for_email,
     upsert_items,
@@ -123,6 +127,8 @@ def cmd_preview(args) -> int:
         except Exception as e:
             errors.append(f"{c.code}: {e}")
     upsert_items(conn, fetched, tz_name=cfg.timezone)
+    mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
+    mark_old_scourt_as_sent(conn, tz_name=cfg.timezone)
 
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
@@ -154,7 +160,18 @@ def _enrich(conn, cfg, items) -> None:
         reason = rank.reason
         summary = None
 
-        # LLM 옵션: 중요도 기준 충족 시 본문을 가져와 요약/중요도 보정
+        # 대법원은 요약 없이 제목/중요도/첨부만 사용
+        if it.source == "scourt":
+            update_item_enrichment(
+                conn,
+                item_id=it.id,
+                importance=importance,
+                importance_reason=reason,
+                summary=None,
+            )
+            continue
+
+        # LLM 옵션: 켜져 있을 때만 요약/중요도 보정 (현재는 요약 비표시)
         if should_call_llm(llm=cfg.llm, current_importance=importance):
             body = extract_main_text(http, it.url)
             spec = SOURCE_SPECS.get(it.source)
@@ -168,16 +185,6 @@ def _enrich(conn, cfg, items) -> None:
                 importance = res.importance
             if res.reason:
                 reason = res.reason
-            if res.summary:
-                summary = res.summary
-        else:
-            # LLM이 꺼져 있어도 High/Medium은 본문 일부를 뽑아 간단 요약을 붙임
-            if importance in ("high", "medium"):
-                try:
-                    body = extract_main_text(http, it.url)
-                    summary = _heuristic_summary(body)
-                except Exception:
-                    summary = None
 
         update_item_enrichment(
             conn,
@@ -205,6 +212,16 @@ def cmd_run(args) -> int:
 
     upsert_items(conn, fetched, tz_name=cfg.timezone)
 
+    # KoFIU 공고/고시/훈령/예규: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
+    n_marked_kofiu = mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
+    if n_marked_kofiu:
+        print(f"KoFIU 공고/고시/훈령/예규 기존 자료 {n_marked_kofiu}건 발송 제외(앞으로 업데이트분만 반영)")
+
+    # 대법원 보도자료/주요판결: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
+    n_marked_scourt = mark_old_scourt_as_sent(conn, tz_name=cfg.timezone)
+    if n_marked_scourt:
+        print(f"대법원 기존 자료 {n_marked_scourt}건 발송 제외(앞으로 업데이트분만 반영)")
+
     # 2) 발송 대상
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
@@ -228,6 +245,23 @@ def cmd_run(args) -> int:
     )
     text = _render_text(pending)
 
+    # 수집 오류가 있으면 먼저 리포트하고, 발송 여부를 확인
+    if errors:
+        print("수집 오류:")
+        for e in errors:
+            print(f"  - {e}")
+        send_anyway = getattr(args, "send_anyway", False)
+        if not send_anyway:
+            if sys.stdin.isatty():
+                try:
+                    answer = input("그래도 발송하시겠습니까? (y/N): ").strip().lower()
+                    send_anyway = answer in ("y", "yes")
+                except (EOFError, KeyboardInterrupt):
+                    send_anyway = False
+            if not send_anyway:
+                print("수집 오류가 있어 발송을 건너뜁니다. 강제 발송: --send-anyway")
+                return 1
+
     if cfg.email.enabled:
         send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text)
         mark_sent(conn, [it.id for it in pending], tz_name=cfg.timezone)
@@ -237,9 +271,17 @@ def cmd_run(args) -> int:
         print(text)
 
     if errors:
-        print("수집 에러(발송에는 반영되지 않았을 수 있음):")
-        for e in errors:
-            print(f"- {e}")
+        print("(참고) 수집 오류가 있었으나 발송은 완료되었습니다.")
+    return 0
+
+
+def cmd_reset_sent(args) -> int:
+    """지정한 날짜 이후 발송 처리된 항목을 미발송으로 되돌립니다. (재발송 전 초기화용)"""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    n = reset_sent_after(conn, args.after_date)
+    print(f"발송 상태 초기화: {args.after_date} 이후 발송분 {n}건 → 미발송으로 되돌림")
     return 0
 
 
@@ -285,12 +327,27 @@ def build_parser() -> argparse.ArgumentParser:
         ("list", cmd_list),
         ("preview", cmd_preview),
         ("run", cmd_run),
+        ("reset-sent", cmd_reset_sent),
         ("resend-last", cmd_resend_last),
     ]:
         sp = sub.add_parser(name)
         sp.add_argument("--config", required=True, help="config.yaml 경로")
         if name == "preview":
             sp.add_argument("--out", required=True, help="HTML 저장 경로")
+        if name == "run":
+            sp.add_argument(
+                "--send-anyway",
+                action="store_true",
+                dest="send_anyway",
+                help="수집 오류가 있어도 확인 없이 발송 (cron/자동 실행용)",
+            )
+        if name == "reset-sent":
+            sp.add_argument(
+                "--after-date",
+                required=True,
+                metavar="YYYY-MM-DD",
+                help="이 날짜 이후 발송된 항목을 미발송으로 되돌림",
+            )
         sp.set_defaults(_fn=fn)
     return p
 
