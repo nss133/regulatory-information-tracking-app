@@ -4,7 +4,7 @@ storage:
   sqlite_path: data/briefing.sqlite3
 
 fetch:
-  user_agent: "DailyRegulatoryBriefing/0.1 (+internal monitoring)"
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
   max_items_per_source: 50
   request_timeout_seconds: 20
 
@@ -20,7 +20,7 @@ email:
     - "crazy426@miraeasset.com"
     - "cov1255@miraeasset.com"
     - "namsu.son@miraeasset.com"
-    - "suyoung@miraeasset.com"
+    - "suyoung.choi@miraeasset.com"
     - "mk.lee@miraeasset.com"
     - "yu.chung@miraeasset.com"
     - "changoh.hong@miraeasset.com"
