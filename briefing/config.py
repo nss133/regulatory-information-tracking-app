@@ -9,7 +9,7 @@ from typing import Any, Optional
 import yaml
 
 
-_DEFAULT_KEYCHAIN_SERVICE = "DailyRegulatoryBriefing:GMAIL_APP_PASSWORD"
+_DEFAULT_KEYCHAIN_SERVICE = "LegalComplianceSignal:GMAIL_APP_PASSWORD"
 
 
 def _read_password_from_keychain(*, service: str, account: str) -> Optional[str]:
@@ -165,7 +165,7 @@ def load_config(path: str | Path) -> AppConfig:
         ),
         email=EmailConfig(
             enabled=bool(_get(email_raw, "enabled", True)),
-            subject_prefix=str(_get(email_raw, "subject_prefix", "[금융규제 모니터링]")),
+            subject_prefix=str(_get(email_raw, "subject_prefix", "[Legal·Compliance Signal]")),
             from_name=str(_get(email_raw, "from_name")),
             from_email=str(_get(email_raw, "from_email")),
             to=list(_get(email_raw, "to")),

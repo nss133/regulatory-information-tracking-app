@@ -10,8 +10,8 @@ fetch:
 
 email:
   enabled: true
-  subject_prefix: "[금융규제 모니터링]"
-  from_name: "금융규제 모니터링"
+  subject_prefix: "[Legal·Compliance Signal]"
+  from_name: "Legal·Compliance Signal"
   from_email: "your.address@gmail.com"
   to:
     - "recipient1@example.com"
