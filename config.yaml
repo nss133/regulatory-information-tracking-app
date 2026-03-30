@@ -25,6 +25,14 @@ email:
     - "yu.chung@miraeasset.com"
     - "changoh.hong@miraeasset.com"
     - "ChangGi.Lim@miraeasset.com"
+    - "toy901@miraeasset.com"
+    - "freeflying@miraeasset.com"
+    - "hyekyung.kang@miraeasset.com"
+    - "nabj@miraeasset.com"
+    - "rjs@miraeasset.com"
+    - "sojin.bae@miraeasset.com"
+    - "jinhuichung1@miraeasset.com"
+    - "59352@miraeasset.com"
   smtp:
     host: "smtp.gmail.com"
     port: 587
