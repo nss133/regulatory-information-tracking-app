@@ -9,7 +9,7 @@ from typing import Any, Optional
 import yaml
 
 
-_DEFAULT_KEYCHAIN_SERVICE = "LegalComplianceSignal:GMAIL_APP_PASSWORD"
+_DEFAULT_KEYCHAIN_SERVICE = "DailyRegulatoryBriefing:GMAIL_APP_PASSWORD"
 
 
 def _read_password_from_keychain(*, service: str, account: str) -> Optional[str]:
