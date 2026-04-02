@@ -82,8 +82,13 @@ def render_email_html(
         if any(kw in title_lower for kw in ["개소식", "공모전", "이러닝", "무료 상담", "무료상담", "응시"]):
             return True
         if "개인정보" not in title_lower:
-            return False
-        return any(kw in title_lower for kw in ["시민단체", "간담회", "행사"])
+            pass
+        elif any(kw in title_lower for kw in ["시민단체", "간담회", "행사"]):
+            return True
+        # 고용노동부는 HIGH만 표시 (LOW/MEDIUM은 노이즈가 많아 제외)
+        if it.source == "moel" and (it.importance or "low") in ("low", "medium"):
+            return True
+        return False
 
     items = [it for it in items if not _should_exclude(it)]
 
