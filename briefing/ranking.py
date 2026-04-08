@@ -30,11 +30,13 @@ def _apply_combo_rules(base: RankResult, hay: str, cfg: RankingConfig) -> RankRe
             if _all_in(combo, hay):
                 return RankResult(importance="medium", reason=f"키워드조합(중): {', '.join(combo)}")
 
-    # 승격 규칙: MEDIUM/LOW → HIGH
+    # 승격 규칙: MEDIUM/LOW → HIGH (promote_exclude 키워드가 있으면 승격 차단)
     if base.importance != "high":
-        for combo in cfg.combo_rules.promote_to_high:
-            if _all_in(combo, hay):
-                return RankResult(importance="high", reason=f"키워드조합(상): {', '.join(combo)}")
+        blocked = any(k.lower() in hay for k in cfg.combo_rules.promote_exclude)
+        if not blocked:
+            for combo in cfg.combo_rules.promote_to_high:
+                if _all_in(combo, hay):
+                    return RankResult(importance="high", reason=f"키워드조합(상): {', '.join(combo)}")
 
     return base
 
@@ -69,7 +71,8 @@ def rank_item(*, title: str, raw_text: Optional[str], cfg: RankingConfig) -> Ran
         base = RankResult(importance="high", reason=f"키워드(상): {', '.join(high_hits[:6])}")
     else:
         med_hits = [k for k in cfg.medium_keywords if k.lower() in hay]
-        if len(med_hits) >= 2:
+        blocked = any(k.lower() in hay for k in cfg.combo_rules.promote_exclude)
+        if len(med_hits) >= 2 and not blocked:
             base = RankResult(importance="high", reason=f"키워드조합 승격(상): {', '.join(med_hits[:6])}")
         elif med_hits:
             base = RankResult(importance="medium", reason=f"키워드(중): {', '.join(med_hits[:6])}")

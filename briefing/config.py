@@ -82,6 +82,7 @@ class StorageConfig:
 class ComboRules:
     """키워드 조합 규칙. 모든 키워드가 동시에 있을 때 등급을 올리거나 내립니다."""
     promote_to_high: list[tuple[str, ...]]    # 비-HIGH → HIGH 승격
+    promote_exclude: list[str]                # 이 키워드 중 하나라도 있으면 승격 차단
     demote_to_medium: list[tuple[str, ...]]   # HIGH → MEDIUM 강등
     demote_to_low: list[tuple[str, ...]]      # HIGH/MEDIUM → LOW 강등
 
@@ -136,6 +137,7 @@ def _load_combo_rules(raw: dict) -> ComboRules:
 
     return ComboRules(
         promote_to_high=_parse("promote_to_high"),
+        promote_exclude=[str(k) for k in raw.get("promote_exclude", [])],
         demote_to_medium=_parse("demote_to_medium"),
         demote_to_low=_parse("demote_to_low"),
     )
