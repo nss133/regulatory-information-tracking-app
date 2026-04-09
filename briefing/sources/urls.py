@@ -2,6 +2,8 @@ FSC_PRESS_RSS = "https://www.fsc.go.kr/about/fsc_bbs_rss/?fid=0111"
 FSC_LEGISLATION_LIST = "https://www.fsc.go.kr/po040301"
 
 FSS_PRESS_LIST = "https://www.fss.or.kr/fss/bbs/B0000188/list.do"
+FSS_ADMGD_PREVIEW_LIST = "https://www.fss.or.kr/fss/job/admnPrvntc/list.do"   # 행정지도 예고
+FSS_ADMGD_DETAIL_LIST = "https://www.fss.or.kr/fss/job/admnstgudc/list.do"    # 행정지도 내역
 
 PIPC_PRESS_LIST = "https://www.pipc.go.kr/np/cop/bbs/selectBoardList.do"
 
