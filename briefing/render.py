@@ -145,8 +145,9 @@ def render_email_html(
         "kofiu": 5,
         "scourt": 6,
         "pipc": 7,
-        "moel": 8,
-        "nhrck": 9,
+        "knia": 8,
+        "moel": 9,
+        "nhrck": 10,
     }
 
     def _sort_key(x: RenderItem):

@@ -22,6 +22,8 @@ KOFIU_PRESS_LIST = "https://www.kofiu.go.kr/kor/notification/report.do"
 KOFIU_ANNOUNCE_LIST = "https://www.kofiu.go.kr/kor/law/announce_list.do"   # 공고/고시/훈령/예규
 KOFIU_LAW_NOTICE_LIST = "https://www.kofiu.go.kr/kor/law/legislation_list.do"  # 입법/규정변경 예고
 
+KNIA_PRESS_LIST = "https://www.knia.or.kr/data/news"  # 손해보험협회 보도자료
+
 SCOURT_PRESS_LIST = "https://www.scourt.go.kr/portal/news/NewsListAction.work?gubun=4&type=0"
 SCOURT_MAJOR_DECISIONS_LIST = (
     "https://library.scourt.go.kr/search/judg/result?"
