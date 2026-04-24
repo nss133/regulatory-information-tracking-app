@@ -7,6 +7,34 @@ from email.message import EmailMessage
 from briefing.config import EmailConfig
 
 
+def send_error_alert(*, cfg: EmailConfig, errors: list[str], run_date: str) -> None:
+    """수집 오류 발생 시 관리자(발신 주소)에게만 경보 이메일 발송."""
+    if not errors or not cfg.enabled:
+        return
+    subject = f"[Legal·Compliance Signal] 수집 오류 {len(errors)}건 ({run_date})"
+    lines = "\n".join(f"- {e}" for e in errors)
+    text_body = f"수집 오류 목록:\n\n{lines}"
+    html_body = f"<pre style='font-family:monospace'>{text_body}</pre>"
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = Address(display_name=cfg.from_name, addr_spec=cfg.from_email)
+    msg["To"] = cfg.from_email  # 관리자(발신자)에게만
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    try:
+        password = cfg.smtp.password()
+        with smtplib.SMTP(cfg.smtp.host, cfg.smtp.port, timeout=30) as s:
+            s.ehlo()
+            s.starttls()
+            s.ehlo()
+            s.login(cfg.smtp.user, password)
+            s.send_message(msg)
+    except Exception as e:
+        print(f"오류 알림 이메일 발송 실패: {e}")
+
+
 def send_email(*, cfg: EmailConfig, subject: str, html_body: str, text_body: str) -> None:
     msg = EmailMessage()
     msg["Subject"] = subject

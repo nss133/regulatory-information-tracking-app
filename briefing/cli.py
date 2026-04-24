@@ -17,7 +17,7 @@ from briefing.db import (
     upsert_items,
     update_item_enrichment,
 )
-from briefing.emailer import send_email
+from briefing.emailer import send_email, send_error_alert
 from briefing.extract import extract_main_text
 from briefing.http import HttpClient
 from briefing.ranking import rank_item
@@ -202,15 +202,25 @@ def cmd_run(args) -> int:
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
 
-    # 1) 수집
+    # 1) 수집 (소스별 병렬 수집)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _fetch_one(c):
+        try:
+            return c.code, c.fetch_latest(), None
+        except Exception as e:
+            return c.code, [], str(e)
+
     connectors = build_connectors(cfg.fetch)
     fetched = []
     errors = []
-    for c in connectors:
-        try:
-            fetched.extend(c.fetch_latest())
-        except Exception as e:
-            errors.append(f"{c.code}: {e}")
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        futures = {ex.submit(_fetch_one, c): c for c in connectors}
+        for f in as_completed(futures):
+            code, items, err = f.result()
+            fetched.extend(items)
+            if err:
+                errors.append(f"{code}: {err}")
 
     upsert_items(conn, fetched, tz_name=cfg.timezone)
 
@@ -274,6 +284,7 @@ def cmd_run(args) -> int:
 
     if errors:
         print("(참고) 수집 오류가 있었으나 발송은 완료되었습니다.")
+        send_error_alert(cfg=cfg.email, errors=errors, run_date=now_iso(cfg.timezone)[:10])
     return 0
 
 
