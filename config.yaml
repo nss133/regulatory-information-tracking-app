@@ -142,9 +142,9 @@ filter:
   max_days_since_published: 7
 
 llm:
-  enabled: false
-  provider: "openai" # 현재는 옵션(ImportError 없이도 동작)
-  api_key_env: "OPENAI_API_KEY"
-  model: "gpt-4o-mini"
+  enabled: true
+  provider: "anthropic"
+  api_key_env: "ANTHROPIC_API_KEY"
+  model: "claude-haiku-4-5-20251001"
   only_when_importance_at_least: "high"
 
