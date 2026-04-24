@@ -25,6 +25,7 @@ class HttpClient:
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
         }
+        _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
         last_exc: Exception = RuntimeError("unreachable")
         for attempt in range(3):
             try:
@@ -35,6 +36,9 @@ class HttpClient:
                     timeout=self.timeout_seconds,
                     verify=False,
                 )
+                if r.status_code in _RETRYABLE_STATUS and attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
                 r.raise_for_status()
                 # 한국 정부 사이트는 종종 euc-kr 등을 사용하므로 requests의 추정을 존중하되,
                 # 없으면 apparent_encoding을 사용합니다.

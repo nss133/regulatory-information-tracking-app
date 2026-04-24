@@ -32,8 +32,10 @@ class StoredItem:
 def connect(sqlite_path: str) -> sqlite3.Connection:
     p = Path(sqlite_path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(p))
+    conn = sqlite3.connect(str(p), timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 

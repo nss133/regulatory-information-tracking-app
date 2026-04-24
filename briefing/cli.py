@@ -185,6 +185,8 @@ def _enrich(conn, cfg, items) -> None:
                 importance = res.importance
             if res.reason:
                 reason = res.reason
+            if res.summary:
+                summary = res.summary
 
         update_item_enrichment(
             conn,
