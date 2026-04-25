@@ -142,9 +142,10 @@ filter:
   max_days_since_published: 7
 
 llm:
-  enabled: false
-  provider: "anthropic"
-  api_key_env: "ANTHROPIC_API_KEY"
-  model: "claude-haiku-4-5-20251001"
-  only_when_importance_at_least: "high"
+  enabled: true
+  provider: "groq"
+  api_key_env: "GROQ_API_KEY"
+  base_url: "https://api.groq.com/openai/v1"
+  model: "llama-3.3-70b-versatile"
+  only_when_importance_at_least: "medium"
 

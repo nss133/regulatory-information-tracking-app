@@ -15,8 +15,8 @@ def extract_main_text(http: HttpClient, url: str) -> str:
     html = http.get_text(url)
     soup = soupify(html)
 
-    # script/style 제거
-    for tag in soup(["script", "style", "noscript"]):
+    # 내비게이션/레이아웃 태그 제거
+    for tag in soup(["script", "style", "noscript", "nav", "header", "footer", "aside"]):
         tag.decompose()
 
     text = soup.get_text("\n", strip=True)

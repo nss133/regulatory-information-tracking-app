@@ -18,6 +18,8 @@
       li { margin: 10px 0; }
       .title { font-weight: 600; }
       .sub { color: #555; font-size: 12px; margin-top: 4px; }
+      .summary { color: #333; font-size: 12px; margin-top: 4px; font-style: italic; }
+      .action { color: #b45309; font-style: normal; font-weight: 500; }
       a { color: #0a58ca; text-decoration: none; }
       a:hover { text-decoration: underline; }
       .hr { border-top: 1px solid #eee; margin-top: 16px; }
@@ -59,10 +61,21 @@
                   <span class="badge">신규</span>
                 {% endif %}
                 <a class="title" href="{{ it.url }}">{{ it.title }}</a>
-                <div class="sub">
-                  {% if it.published_at %}{{ it.published_at }} · {% endif %}
-                  {{ it.reason }}
-                </div>
+                {% if it.summary %}
+                  {% if it.published_at %}<div class="sub">{{ it.published_at }}</div>{% endif %}
+                  {% if ' [조치] ' in it.summary %}
+                    {% set parts = it.summary.split(' [조치] ') %}
+                    <div class="summary">{{ parts[0] }}</div>
+                    <div class="summary action">조치: {{ parts[1] }}</div>
+                  {% else %}
+                    <div class="summary">{{ it.summary }}</div>
+                  {% endif %}
+                {% else %}
+                  <div class="sub">
+                    {% if it.published_at %}{{ it.published_at }} · {% endif %}
+                    {{ it.reason }}
+                  </div>
+                {% endif %}
                 {% if it.attachments|length > 0 %}
                   <div class="sub">
                     첨부:

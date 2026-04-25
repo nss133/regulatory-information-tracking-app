@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -13,6 +14,26 @@ class LlmResult:
     importance: Optional[Importance]
     summary: Optional[str]
     reason: Optional[str]
+
+
+def _sanitize_json(text: str) -> str:
+    """JSON 문자열 값 안의 리터럴 제어문자(줄바꿈 등)를 공백으로 치환."""
+    return re.sub(
+        r'"(?:[^"\\]|\\.)*"',
+        lambda m: m.group().replace("\n", " ").replace("\r", " ").replace("\t", " "),
+        text,
+    )
+
+
+def _extract_json(text: str) -> dict:
+    """LLM 응답에서 JSON 객체를 추출·파싱. 실패 시 예외 발생."""
+    if "```" in text:
+        text = text.split("```")[-2].removeprefix("json").strip()
+    # 중괄호 블록만 추출 (앞뒤 여분 텍스트 제거)
+    m = re.search(r'\{.*\}', text, re.DOTALL)
+    if m:
+        text = m.group()
+    return json.loads(_sanitize_json(text))
 
 
 def _importance_order(x: str) -> int:
@@ -54,12 +75,12 @@ def summarize_with_llm(
 출력 JSON:
 {{
   "importance": "low|medium|high",
-  "summary_ko": "1~2문장. '~함', '~됨', '~예정임' 어미. 핵심 규제 내용 또는 제재 사실만 기술. 배경 설명 생략.",
-  "action_required": "법무·컴플라이언스팀이 취해야 할 구체적 조치. 없으면 null.",
+  "summary_ko": "해당 자료의 요지를 세 줄로 요약. 구체적인 사건·행위사실과 핵심 주제 서술에 집중. 조치 권고는 넣지 말 것. 반드시 '~음', '~함', '~됨', '~임', '~예정임' 등 간결한 명사형·단축형 어미로 끝낼 것. '~습니다', '~이다', '~했다' 등 서술형 어미 사용 금지.",
+  "action_required": null,
   "reason_ko": "보험사 관점에서 중요한 이유 1문장."
 }}
 
-중요: summary_ko는 구어체 금지. action_required는 구체적 행동 동사로 시작할 것."""
+중요: summary_ko는 반드시 한국어로만 작성. 구어체·서술형 어미 금지. 조치·권고 문구 금지. 사실관계와 핵심 내용만. 각 줄은 '~음/~함/~됨/~임'으로 종결."""
 
     if llm.provider == "anthropic":
         try:
@@ -74,24 +95,26 @@ def summarize_with_llm(
                 messages=[{"role": "user", "content": prompt}],
             )
             text = msg.content[0].text.strip()
-            # JSON 블록 추출 (```json ... ``` 감싸인 경우 대응)
-            if "```" in text:
-                text = text.split("```")[-2].removeprefix("json").strip()
-            data = json.loads(text)
+            data = _extract_json(text)
         except Exception as e:
             return LlmResult(importance=None, summary=None, reason=f"LLM 호출 실패: {e}")
-    elif llm.provider == "openai":
+    elif llm.provider in ("openai", "groq"):
         try:
             from openai import OpenAI  # type: ignore
         except Exception:
             return LlmResult(importance=None, summary=None, reason="openai 패키지 미설치")
         try:
-            client = OpenAI(api_key=api_key)
-            resp = client.responses.create(model=llm.model, input=prompt)
-            text = (getattr(resp, "output_text", None) or "").strip()
-            if "```" in text:
-                text = text.split("```")[-2].removeprefix("json").strip()
-            data = json.loads(text)
+            kwargs: dict = {"api_key": api_key}
+            if llm.base_url:
+                kwargs["base_url"] = llm.base_url
+            client = OpenAI(**kwargs)
+            resp = client.chat.completions.create(
+                model=llm.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=512,
+            )
+            text = (resp.choices[0].message.content or "").strip()
+            data = _extract_json(text)
         except Exception as e:
             return LlmResult(importance=None, summary=None, reason=f"LLM 호출 실패: {e}")
     else:

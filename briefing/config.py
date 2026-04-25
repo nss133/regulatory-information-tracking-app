@@ -107,6 +107,7 @@ class LlmConfig:
     api_key_env: str
     model: str
     only_when_importance_at_least: str
+    base_url: Optional[str] = None
 
     def api_key(self) -> Optional[str]:
         return os.getenv(self.api_key_env)
@@ -196,6 +197,7 @@ def load_config(path: str | Path) -> AppConfig:
             only_when_importance_at_least=str(
                 _get(llm_raw, "only_when_importance_at_least", "high")
             ),
+            base_url=llm_raw.get("base_url") or None,
         ),
     )
 

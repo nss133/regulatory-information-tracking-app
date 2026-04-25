@@ -45,35 +45,44 @@ def _render_text(items) -> str:
         lines.append("")
     return "\n".join(lines).strip() + "\n"
 
+import re as _re
+
+_NAV_SKIP_KW = (
+    "바로가기", "바로 가기", "본문으로", "주메뉴", "메뉴열기", "메뉴 닫기",
+    "사이트맵", "로그인", "회원가입", "페이스북", "트위터", "유튜브",
+    "인스타그램", "블로그", "화면 확대", "화면 축소", "글자크기",
+    "누리집", "홈페이지", "Language", "통합검색", "검색버튼",
+    "이전 페이지", "다음 페이지", "목록으로", "프린트",
+)
+
+
 def _heuristic_summary(body: str) -> str | None:
     """
     LLM이 꺼져 있어도 '대략 무슨 내용인지'가 보이도록,
-    본문에서 앞부분 문장 1~2개를 짧게 추출합니다.
-    (공통 추출이라 메뉴/내비게이션이 섞일 수 있어 길이를 제한)
+    본문에서 실질적 내용이 담긴 첫 문장을 추출합니다.
+    문장 종결어미(다. / 니다. 등) 기준으로 분리 후 내비게이션 문장을 건너뜁니다.
     """
     body = (body or "").strip()
     if len(body) < 80:
         return None
 
-    # 너무 긴 공백 정리된 텍스트 기준, 문장 경계 후보로 나눔(한국어/영문 혼합 대비)
-    parts: list[str] = []
-    for sep in ["다. ", ". ", ")\n", "\n"]:
-        if sep in body:
-            parts = [p.strip() for p in body.split(sep) if p.strip()]
-            break
-    if not parts:
-        parts = [body]
+    # 한국어 문장 종결 패턴으로 분리
+    raw_sentences = _re.split(r'(?<=다)\.\s+|(?<=니다)\.\s+|(?<=습니다)\.\s+', body)
+    sentences = [s.replace("\n", " ").strip() for s in raw_sentences if s.strip()]
 
-    s = parts[0]
-    if len(parts) < 2:
-        out = s
-    else:
-        out = f"{s}. {parts[1]}"
+    for s in sentences:
+        if len(s) < 25:
+            continue
+        if any(kw in s for kw in _NAV_SKIP_KW):
+            continue
+        # 메뉴 리스트성 문장 제거: 짧은 토큰이 전체의 70% 초과
+        tokens = s.split()
+        if tokens and sum(1 for t in tokens if len(t) <= 4) / len(tokens) > 0.7:
+            continue
+        out = s[:220].rstrip() + ("…" if len(s) > 220 else "")
+        return out
 
-    out = out.replace("\n", " ").strip()
-    if len(out) > 220:
-        out = out[:220].rstrip() + "…"
-    return out
+    return None
 
 
 def cmd_fetch(args) -> int:
@@ -171,7 +180,6 @@ def _enrich(conn, cfg, items) -> None:
             )
             continue
 
-        # LLM 옵션: 켜져 있을 때만 요약/중요도 보정 (현재는 요약 비표시)
         if should_call_llm(llm=cfg.llm, current_importance=importance):
             body = extract_main_text(http, it.url)
             spec = SOURCE_SPECS.get(it.source)
@@ -181,10 +189,11 @@ def _enrich(conn, cfg, items) -> None:
                 body=body,
                 source_name_ko=(spec.name_ko if spec else it.source),
             )
+            # LLM 성공(importance 파싱됨)한 경우만 중요도·사유 보정
             if res.importance:
                 importance = res.importance
-            if res.reason:
-                reason = res.reason
+                if res.reason:
+                    reason = res.reason
             if res.summary:
                 summary = res.summary
 
