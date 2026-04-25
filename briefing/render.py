@@ -246,5 +246,11 @@ def render_email_html(
         RenderSection(label="LOW", items=by_importance.get("low", [])),
     ]
 
-    return tpl.render(subject=subject, run_date=run_date, sections=sections, errors=(errors or []))
+    html = tpl.render(subject=subject, run_date=run_date, sections=sections, errors=(errors or []))
+    try:
+        from premailer import transform  # type: ignore
+        html = transform(html, preserve_internal_links=True, remove_classes=False)
+    except Exception:
+        pass  # premailer 실패 시 원본 반환
+    return html
 

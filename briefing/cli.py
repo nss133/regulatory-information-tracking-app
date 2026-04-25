@@ -162,7 +162,9 @@ def cmd_preview(args) -> int:
 
 
 def _enrich(conn, cfg, items) -> None:
+    import time as _time
     http = HttpClient(user_agent=cfg.fetch.user_agent, timeout_seconds=cfg.fetch.request_timeout_seconds)
+    _llm_call_count = 0
     for it in items:
         rank = rank_item(title=it.title, raw_text=None, cfg=cfg.ranking)
         importance = rank.importance
@@ -180,7 +182,9 @@ def _enrich(conn, cfg, items) -> None:
             )
             continue
 
-        if should_call_llm(llm=cfg.llm, current_importance=importance):
+        if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
+            if _llm_call_count > 0:
+                _time.sleep(15)  # Groq TPM 한도 방지
             body = extract_main_text(http, it.url)
             spec = SOURCE_SPECS.get(it.source)
             res = summarize_with_llm(
@@ -189,6 +193,7 @@ def _enrich(conn, cfg, items) -> None:
                 body=body,
                 source_name_ko=(spec.name_ko if spec else it.source),
             )
+            _llm_call_count += 1
             # LLM 성공(importance 파싱됨)한 경우만 중요도·사유 보정
             if res.importance:
                 importance = res.importance
@@ -197,12 +202,14 @@ def _enrich(conn, cfg, items) -> None:
             if res.summary:
                 summary = res.summary
 
+        # 기존 요약이 있으면 새 요약이 None이어도 덮어쓰지 않음
+        final_summary = summary if summary is not None else it.summary
         update_item_enrichment(
             conn,
             item_id=it.id,
             importance=importance,
             importance_reason=reason,
-            summary=summary,
+            summary=final_summary,
         )
 
 

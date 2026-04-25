@@ -2,122 +2,208 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ subject }}</title>
     <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #111; }
-      .meta { color: #555; font-size: 12px; margin-bottom: 18px; }
-      .source { margin-top: 22px; }
-      .source h2 { font-size: 16px; margin: 0 0 10px; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #ddd; margin-right: 6px; }
-      .high { border-color: #b91c1c; color: #b91c1c; }
-      .medium { border-color: #b45309; color: #b45309; }
-      .low { border-color: #6b7280; color: #6b7280; }
-      .kind { border-color: #2563eb; color: #2563eb; }
-      ul { padding-left: 18px; margin: 8px 0 0; }
-      li { margin: 10px 0; }
-      .title { font-weight: 600; }
-      .sub { color: #555; font-size: 12px; margin-top: 4px; }
-      .summary { color: #333; font-size: 12px; margin-top: 4px; font-style: italic; }
-      .action { color: #b45309; font-style: normal; font-weight: 500; }
-      a { color: #0a58ca; text-decoration: none; }
-      a:hover { text-decoration: underline; }
-      .hr { border-top: 1px solid #eee; margin-top: 16px; }
-      .muted { color: #666; }
-      .child-item { margin-left: 1.5em; margin-top: 6px; list-style-type: circle; }
+      body {
+        margin: 0; padding: 12px 20px;
+        background-color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+        color: #111;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      /* ── 상단 메타 ── */
+      .top-meta {
+        font-size: 11px;
+        color: #888;
+        margin-bottom: 12px;
+        border-bottom: 2px solid #111;
+        padding-bottom: 6px;
+      }
+
+      /* ── 섹션 ── */
+      .section { margin-bottom: 20px; }
+
+      .sec-header {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 6px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #ddd;
+      }
+      .sec-header-high   { color: #c00; border-color: #c00; }
+      .sec-header-medium { color: #b45309; border-color: #b45309; }
+      .sec-header-low    { color: #888; border-color: #ccc; }
+
+      /* ── 아이템 ── */
+      .item {
+        padding: 6px 0;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .item:last-child { border-bottom: none; }
+
+      /* ── 메타 줄 ── */
+      .item-meta { margin-bottom: 2px; line-height: 1.6; }
+      .tag {
+        display: inline-block;
+        padding: 0 6px;
+        border-radius: 2px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-right: 4px;
+        vertical-align: middle;
+      }
+      .tag-source  { background-color: #e8f0fe; color: #1a56db; }
+      .tag-kind    { background-color: #f3f0ff; color: #6c3fc7; }
+      .tag-new     { background-color: #e6f4ea; color: #1b6b3a; }
+      .tag-updated { background-color: #fef3e2; color: #92400e; }
+      .item-date   { font-size: 11px; color: #aaa; vertical-align: middle; }
+
+      /* ── 제목 ── */
+      .item-title {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: #111;
+        text-decoration: none;
+        margin: 1px 0 4px;
+        line-height: 1.4;
+      }
+      .item-title:hover { text-decoration: underline; }
+
+      /* ── 요약 ── */
+      .item-summary {
+        font-size: 12px;
+        color: #444;
+        line-height: 1.6;
+        margin-bottom: 3px;
+        padding-left: 8px;
+        border-left: 2px solid #ccc;
+      }
+
+      /* ── 이유 (summary 없을 때) ── */
+      .item-reason {
+        font-size: 11px;
+        color: #777;
+        line-height: 1.45;
+      }
+
+      /* ── 첨부 ── */
+      .item-attach {
+        font-size: 11px;
+        color: #aaa;
+        margin-top: 2px;
+      }
+      .item-attach a { color: #1a56db; text-decoration: none; }
+
+      /* ── 자식 아이템 ── */
+      .child-list {
+        list-style: none;
+        margin: 6px 0 0;
+        padding: 0 0 0 16px;
+        border-left: 2px solid #e0e0e0;
+      }
+      .child-item { padding: 6px 0; border-bottom: 1px solid #f5f5f5; }
+      .child-item:last-child { border-bottom: none; }
+
+      /* ── 오류 ── */
+      .error-note {
+        font-size: 12px;
+        color: #c00;
+        margin-bottom: 14px;
+      }
+
+      /* ── 푸터 ── */
+      .footer { font-size: 11px; color: #bbb; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }
     </style>
   </head>
   <body>
-    <div class="meta">
-      <div><b>기준일</b>: {{ run_date }}</div>
-      <div class="muted">신규/변경된 항목만 포함합니다.</div>
+
+    <div class="top-meta">
+      {{ run_date[:10] }} &nbsp;·&nbsp; Legal &amp; Compliance Signal &nbsp;·&nbsp; 신규/변경 항목만 포함
     </div>
 
     {% if errors and errors|length > 0 %}
-      <div class="meta">
-        <div><b>수집 오류</b></div>
-        <ul>
-          {% for e in errors %}
-            <li class="muted">{{ e }}</li>
-          {% endfor %}
-        </ul>
-      </div>
+      <div class="error-note">⚠ 수집 오류 {{ errors|length }}건 — 일부 소스가 누락되었을 수 있습니다.</div>
     {% endif %}
 
     {% for sec in sections %}
-      <div class="source">
-        <h2>중요도: {{ sec.label }}</h2>
+      {% if sec.items|length > 0 %}
+        {% set sec_key = sec.label | lower %}
+        <div class="section">
 
-        {% if sec.items|length == 0 %}
-          <div class="muted">해당 중요도 항목 없음</div>
-        {% else %}
-          <ul>
-            {% for it in sec.items %}
-              <li>
-                <span class="badge {{ it.importance }}">{{ it.importance|upper }}</span>
-                <span class="badge kind">{{ it.category_label }}</span>
-                <span class="badge">{{ it.source_name_ko }} ({{ it.source_code }})</span>
+          <div class="sec-header sec-header-{{ sec_key }}">
+            {%- if sec_key == 'high' -%}▲ HIGH
+            {%- elif sec_key == 'medium' -%}◆ MEDIUM
+            {%- else -%}● LOW
+            {%- endif -%}
+            &nbsp;<span style="font-weight:400; font-size:11px;">({{ sec.items|length }}건)</span>
+          </div>
+
+          {% for it in sec.items %}
+            <div class="item">
+
+              <div class="item-meta">
+                <span class="tag tag-source">{{ it.source_name_ko }}</span>
+                <span class="tag tag-kind">{{ it.category_label }}</span>
                 {% if not it.is_updated %}
-                  <span class="badge">신규</span>
+                  <span class="tag tag-new">신규</span>
                 {% endif %}
-                <a class="title" href="{{ it.url }}">{{ it.title }}</a>
-                {% if it.summary %}
-                  {% if it.published_at %}<div class="sub">{{ it.published_at }}</div>{% endif %}
-                  {% if ' [조치] ' in it.summary %}
-                    {% set parts = it.summary.split(' [조치] ') %}
-                    <div class="summary">{{ parts[0] }}</div>
-                    <div class="summary action">조치: {{ parts[1] }}</div>
-                  {% else %}
-                    <div class="summary">{{ it.summary }}</div>
-                  {% endif %}
-                {% else %}
-                  <div class="sub">
-                    {% if it.published_at %}{{ it.published_at }} · {% endif %}
-                    {{ it.reason }}
-                  </div>
+                {% if it.published_at and not it.summary %}
+                  <span class="item-date">{{ it.published_at }}</span>
                 {% endif %}
-                {% if it.attachments|length > 0 %}
-                  <div class="sub">
-                    첨부:
-                    {% for a in it.attachments %}
-                      <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                {% if it.child_items|length > 0 %}
-                  <ul class="child-item">
-                    {% for child in it.child_items %}
-                      <li>
-                        <span class="badge {{ child.importance }}">{{ child.importance|upper }}</span>
-                        <span class="badge kind">{{ child.category_label }}</span>
-                        <span class="badge">{{ child.source_name_ko }} ({{ child.source_code }})</span>
-                        {% if not child.is_updated %}
-                          <span class="badge">신규</span>
-                        {% endif %}
-                        <a class="title" href="{{ child.url }}">{{ child.title }}</a>
-                        <div class="sub">
-                          {% if child.published_at %}{{ child.published_at }} · {% endif %}
-                          {{ child.reason }}
+              </div>
+
+              <a class="item-title" href="{{ it.url }}">{{ it.title }}</a>
+
+              {% if it.summary %}
+                <div class="item-summary">{{ it.summary }}</div>
+              {% else %}
+                <div class="item-reason">{{ it.reason }}</div>
+              {% endif %}
+
+              {% if it.attachments|length > 0 %}
+                <div class="item-attach">
+                  첨부:
+                  {% for a in it.attachments %}
+                    <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              {% if it.child_items|length > 0 %}
+                <ul class="child-list">
+                  {% for child in it.child_items %}
+                    <li class="child-item">
+                      <div class="item-meta">
+                        <span class="tag tag-source">{{ child.source_name_ko }}</span>
+                        <span class="tag tag-kind">{{ child.category_label }}</span>
+                      </div>
+                      <a class="item-title" href="{{ child.url }}" style="font-size:13px;">{{ child.title }}</a>
+                      {% if child.reason %}<div class="item-reason">{{ child.reason }}</div>{% endif %}
+                      {% if child.attachments|length > 0 %}
+                        <div class="item-attach">
+                          첨부:
+                          {% for a in child.attachments %}
+                            <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
+                          {% endfor %}
                         </div>
-                        {% if child.attachments|length > 0 %}
-                          <div class="sub">
-                            첨부:
-                            {% for a in child.attachments %}
-                              <a href="{{ a.url }}">{{ a.label }}</a>{% if not loop.last %}, {% endif %}
-                            {% endfor %}
-                          </div>
-                        {% endif %}
-                      </li>
-                    {% endfor %}
-                  </ul>
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-        {% endif %}
-        <div class="hr"></div>
-      </div>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+
+            </div>
+          {% endfor %}
+
+        </div>
+      {% endif %}
     {% endfor %}
+
+    <div class="footer">미래에셋생명보험 법무·컴플라이언스팀 내부 브리핑</div>
+
   </body>
 </html>
-
