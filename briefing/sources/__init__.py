@@ -11,7 +11,6 @@ from briefing.sources.nhrck import NhrckConnector
 from briefing.sources.na import NaAssemblyConnector
 from briefing.sources.pipc import PipcConnector
 from briefing.sources.scourt import ScourtConnector
-from briefing.sources.knia import KniaConnector
 from briefing.sources.registry import SourceConnector
 
 
@@ -28,6 +27,5 @@ def build_connectors(fetch: FetchConfig) -> list[SourceConnector]:
         NhrckConnector(http, max_items=max_items),
         KftcConnector(http, max_items=max_items),
         NaAssemblyConnector(http, max_items=max_items),
-        KniaConnector(http, max_items=max_items),
     ]
 

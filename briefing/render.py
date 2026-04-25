@@ -81,7 +81,10 @@ def render_email_html(
             return True
         if any(kw in title_lower for kw in ["개소식", "공모전", "이러닝", "무료 상담", "무료상담", "응시"]):
             return True
-        if "개인정보" in title_lower and any(kw in title_lower for kw in ["시민단체", "간담회", "행사"]):
+        if "개인정보" in title_lower and any(kw in title_lower for kw in [
+            "시민단체", "간담회", "행사", "현장 소통", "발대식",
+            "우수사례", "포럼", "지역 균형", "나선다", "나서",
+        ]):
             return True
         # 고용노동부는 HIGH만 표시 (LOW/MEDIUM은 노이즈가 많아 제외)
         if it.source == "moel" and (it.importance or "low") in ("low", "medium"):
@@ -145,9 +148,8 @@ def render_email_html(
         "kofiu": 5,
         "scourt": 6,
         "pipc": 7,
-        "knia": 8,
-        "moel": 9,
-        "nhrck": 10,
+        "moel": 8,
+        "nhrck": 9,
     }
 
     def _sort_key(x: RenderItem):

@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal, Optional
 
 
-SourceCode = Literal["fsc", "fss", "pipc", "moel", "nhrck", "kftc", "kofiu", "na", "scourt", "knia"]
+SourceCode = Literal["fsc", "fss", "pipc", "moel", "nhrck", "kftc", "kofiu", "na", "scourt"]
 Category = Literal["press", "legislation", "admin_notice", "case_law", "other"]
 Importance = Literal["low", "medium", "high"]
 
