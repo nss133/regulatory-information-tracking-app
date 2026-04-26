@@ -73,14 +73,15 @@ def summarize_with_llm(
 {body[:2500]}
 
 출력 형식 (이 구조 그대로):
-{{"importance":"low|medium|high","summary_ko":"줄1 / 줄2 / 줄3","reason_ko":"이유 1문장"}}
+{{"importance":"low|medium|high","summary_ko":"줄1 / 줄2 / 줄3 / 줄4","reason_ko":"이유 1문장"}}
 
 [summary_ko 작성 규칙 — 반드시 준수]
 - 순수 한국어만 사용. 영어·중국어·일본어 등 외국어 단어 절대 금지.
 - 사건·행위사실과 핵심 주제만 기술. 조치·권고·평가 문구 금지.
+- 반드시 3~4줄로 작성할 것 (/ 구분). 2줄 이하 또는 5줄 이상은 허용하지 않음.
 - 각 줄(/ 구분)은 반드시 다음 어미 중 하나로 끝낼 것: 음 / 함 / 됨 / 임 / 예정임 / 받음 / 내림
 - 서술형 어미(~다, ~습니다, ~한다, ~됩니다, ~였다) 절대 금지.
-- 올바른 예: "3개사가 가격 담합 행위로 공정위에 제재를 받음 / 과징금 총 120억 원 부과됨 / 향후 재발 방지 명령 포함됨"
+- 올바른 예: "3개사가 가격 담합 행위로 공정위에 제재를 받음 / 과징금 총 120억 원 부과됨 / 향후 재발 방지 명령 포함됨 / 피심인 이의신청 기간 30일 부여됨"
 - 잘못된 예: "공정위가 제재를 내렸다 / 과징금이 부과되었습니다"
 
 [importance 기준]
@@ -97,7 +98,7 @@ def summarize_with_llm(
             client = anthropic.Anthropic(api_key=api_key)
             msg = client.messages.create(
                 model=llm.model,
-                max_tokens=512,
+                max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
             )
             text = msg.content[0].text.strip()
@@ -117,7 +118,7 @@ def summarize_with_llm(
             resp = client.chat.completions.create(
                 model=llm.model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=512,
+                max_tokens=1024,
             )
             text = (resp.choices[0].message.content or "").strip()
             data = _extract_json(text)
