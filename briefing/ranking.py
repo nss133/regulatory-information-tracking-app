@@ -77,7 +77,7 @@ def rank_item(*, title: str, raw_text: Optional[str], cfg: RankingConfig) -> Ran
         elif med_hits:
             base = RankResult(importance="medium", reason=f"키워드(중): {', '.join(med_hits[:6])}")
         else:
-            base = RankResult(importance="low", reason="키워드 매칭 없음")
+            base = RankResult(importance="low", reason="")
 
     return _apply_combo_rules(base, hay, cfg)
 

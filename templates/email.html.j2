@@ -160,7 +160,7 @@
 
               {% if it.summary %}
                 <div class="item-summary">{{ it.summary }}</div>
-              {% else %}
+              {% elif it.reason %}
                 <div class="item-reason">{{ it.reason }}</div>
               {% endif %}
 
