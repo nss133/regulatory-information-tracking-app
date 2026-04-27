@@ -114,6 +114,18 @@ class LlmConfig:
 
 
 @dataclass(frozen=True)
+class ArchiveConfig:
+    enabled: bool
+    kordoc_cli_path: str
+    attachment_sleep_seconds: float
+    max_attachment_size_mb: int
+    sources_for_attachments: list[str]
+    body_harvest_days: int
+    body_harvest_limit: int
+    attachment_harvest_limit: int
+
+
+@dataclass(frozen=True)
 class AppConfig:
     timezone: str
     storage: StorageConfig
@@ -122,6 +134,7 @@ class AppConfig:
     ranking: RankingConfig
     filter_config: FilterConfig
     llm: LlmConfig
+    archive: ArchiveConfig
 
 
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -157,6 +170,12 @@ def load_config(path: str | Path) -> AppConfig:
     ranking_raw = _get(raw, "ranking")
     filter_raw = raw.get("filter", {})
     llm_raw = _get(raw, "llm")
+    archive_raw = raw.get("archive", {})
+
+    _default_kordoc = (
+        "/Users/nsss/.claude/plugins/marketplaces/"
+        "korean-law-marketplace/node_modules/kordoc/dist/cli.js"
+    )
 
     return AppConfig(
         timezone=str(_get(raw, "timezone", "Asia/Seoul")),
@@ -198,6 +217,18 @@ def load_config(path: str | Path) -> AppConfig:
                 _get(llm_raw, "only_when_importance_at_least", "high")
             ),
             base_url=llm_raw.get("base_url") or None,
+        ),
+        archive=ArchiveConfig(
+            enabled=bool(_get(archive_raw, "enabled", True)),
+            kordoc_cli_path=str(_get(archive_raw, "kordoc_cli_path", _default_kordoc)),
+            attachment_sleep_seconds=float(_get(archive_raw, "attachment_sleep_seconds", 0.7)),
+            max_attachment_size_mb=int(_get(archive_raw, "max_attachment_size_mb", 20)),
+            sources_for_attachments=list(
+                _get(archive_raw, "sources_for_attachments", ["fsc", "fss", "kftc"])
+            ),
+            body_harvest_days=int(_get(archive_raw, "body_harvest_days", 30)),
+            body_harvest_limit=int(_get(archive_raw, "body_harvest_limit", 100)),
+            attachment_harvest_limit=int(_get(archive_raw, "attachment_harvest_limit", 50)),
         ),
     )
 

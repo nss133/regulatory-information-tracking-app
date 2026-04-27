@@ -1,0 +1,58 @@
+title: "Legal·Compliance Signal — 아카이브"
+description: "미래에셋생명보험 법무·컴플라이언스팀 브리핑 아카이브 검색"
+
+databases:
+  briefing:
+    path: data/briefing.sqlite3
+    tables:
+      items:
+        label_column: title
+        sort_desc: published_at
+        searchmode: fts5
+        facets:
+          - source
+          - importance
+          - category
+      item_content:
+        sort_desc: fetched_at
+        facets:
+          - extraction_status
+          - mime_type
+    queries:
+      전문검색: >-
+        SELECT
+          i.source,
+          i.title,
+          i.url,
+          i.published_at,
+          i.importance,
+          i.summary,
+          snippet(content_fts, 2, '[', ']', '...', 32) AS 본문_발췌,
+          snippet(content_fts, 3, '[', ']', '...', 32) AS 첨부_발췌
+        FROM content_fts
+        JOIN items i ON i.id = content_fts.item_id
+        WHERE content_fts MATCH :q
+        ORDER BY rank
+        LIMIT 50
+      아카이브_현황: >-
+        SELECT
+          source,
+          COUNT(*) AS 전체,
+          SUM(CASE WHEN raw_text IS NOT NULL THEN 1 ELSE 0 END) AS body_수집,
+          SUM(CASE WHEN importance = 'high' THEN 1 ELSE 0 END) AS HIGH,
+          SUM(CASE WHEN importance = 'medium' THEN 1 ELSE 0 END) AS MEDIUM,
+          MIN(published_at) AS 최초,
+          MAX(published_at) AS 최신
+        FROM items
+        GROUP BY source
+        ORDER BY 전체 DESC
+      첨부파일_현황: >-
+        SELECT
+          extraction_status,
+          COUNT(*) AS 건수,
+          GROUP_CONCAT(DISTINCT mime_type) AS mime_types
+        FROM item_content
+        GROUP BY extraction_status
+
+allow_download: false
+sql_editor: false

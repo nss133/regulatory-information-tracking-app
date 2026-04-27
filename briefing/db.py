@@ -68,6 +68,57 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_source ON items(source)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_last_seen ON items(last_seen_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_last_sent ON items(last_sent_at)")
+
+    # 첨부파일 텍스트 아카이브
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS item_content (
+          item_id TEXT NOT NULL,
+          source_url TEXT NOT NULL,
+          label TEXT,
+          mime_type TEXT,
+          extracted_text TEXT,
+          extraction_status TEXT NOT NULL DEFAULT 'pending',
+          extraction_error TEXT,
+          fetched_at TEXT,
+          PRIMARY KEY (item_id, source_url)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_content_status ON item_content(extraction_status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_content_item ON item_content(item_id)"
+    )
+
+    # FTS5 전문검색 인덱스 (trigram: 한국어 부분문자열 검색)
+    try:
+        conn.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
+              item_id UNINDEXED,
+              title,
+              body_text,
+              attach_text,
+              tokenize='trigram'
+            )
+            """
+        )
+    except Exception:
+        # trigram 미지원 SQLite (구버전) 폴백
+        conn.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS content_fts USING fts5(
+              item_id UNINDEXED,
+              title,
+              body_text,
+              attach_text,
+              tokenize='unicode61'
+            )
+            """
+        )
+
     conn.commit()
 
 
@@ -356,6 +407,168 @@ def mark_old_scourt_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
     )
     conn.commit()
     return cur.rowcount
+
+
+# ── 아카이브 함수 ──────────────────────────────────────────────────────────────
+
+
+def update_body_text(conn: sqlite3.Connection, *, item_id: str, body_text: str) -> None:
+    """items.raw_text 컬럼에 본문 텍스트를 저장합니다."""
+    conn.execute(
+        "UPDATE items SET raw_text = :body WHERE id = :id AND raw_text IS NULL",
+        {"id": item_id, "body": body_text},
+    )
+    conn.commit()
+
+
+def upsert_attachment_record(
+    conn: sqlite3.Connection,
+    *,
+    item_id: str,
+    source_url: str,
+    label: str,
+    tz_name: str,
+) -> None:
+    """첨부파일 URL을 item_content에 등록합니다. 이미 존재하면 무시합니다."""
+    now = now_iso(tz_name)
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO item_content (item_id, source_url, label, fetched_at)
+        VALUES (:item_id, :source_url, :label, :now)
+        """,
+        {"item_id": item_id, "source_url": source_url, "label": label, "now": now},
+    )
+    conn.commit()
+
+
+def update_attachment_result(
+    conn: sqlite3.Connection,
+    *,
+    item_id: str,
+    source_url: str,
+    mime_type: Optional[str],
+    extracted_text: Optional[str],
+    status: str,
+    error: Optional[str],
+) -> None:
+    """첨부파일 추출 결과를 저장합니다."""
+    conn.execute(
+        """
+        UPDATE item_content
+        SET mime_type = :mime_type,
+            extracted_text = :extracted_text,
+            extraction_status = :status,
+            extraction_error = :error
+        WHERE item_id = :item_id AND source_url = :source_url
+        """,
+        {
+            "item_id": item_id,
+            "source_url": source_url,
+            "mime_type": mime_type,
+            "extracted_text": extracted_text,
+            "status": status,
+            "error": error,
+        },
+    )
+    conn.commit()
+
+
+def select_items_missing_body(
+    conn: sqlite3.Connection, *, days: int = 30, limit: int = 100
+) -> list[sqlite3.Row]:
+    """body text(raw_text)가 없는 항목 중 최근 N일 이내 것을 반환합니다."""
+    return conn.execute(
+        """
+        SELECT id, source, url
+        FROM items
+        WHERE raw_text IS NULL
+          AND source != 'scourt'
+          AND (published_at IS NULL OR published_at >= date('now', :modifier))
+        ORDER BY published_at DESC
+        LIMIT :limit
+        """,
+        {"modifier": f"-{days} days", "limit": limit},
+    ).fetchall()
+
+
+def select_pending_attachments(
+    conn: sqlite3.Connection, *, limit: int = 50
+) -> list[sqlite3.Row]:
+    """extraction_status가 'pending'인 첨부파일 레코드를 반환합니다."""
+    return conn.execute(
+        """
+        SELECT ic.item_id, ic.source_url, ic.label, i.source
+        FROM item_content ic
+        JOIN items i ON i.id = ic.item_id
+        WHERE ic.extraction_status = 'pending'
+        ORDER BY i.published_at DESC
+        LIMIT :limit
+        """,
+        {"limit": limit},
+    ).fetchall()
+
+
+def rebuild_fts(conn: sqlite3.Connection) -> int:
+    """
+    content_fts 인덱스를 전체 재구축합니다.
+    body text 또는 첨부파일 텍스트가 있는 항목만 인덱싱합니다.
+    Returns: 인덱싱된 항목 수
+    """
+    conn.execute("DELETE FROM content_fts")
+    cur = conn.execute(
+        """
+        INSERT INTO content_fts (item_id, title, body_text, attach_text)
+        SELECT
+          i.id,
+          i.title,
+          COALESCE(i.raw_text, '') AS body_text,
+          COALESCE(
+            (SELECT GROUP_CONCAT(ic2.extracted_text, '\n')
+             FROM item_content ic2
+             WHERE ic2.item_id = i.id
+               AND ic2.extraction_status = 'success'
+               AND ic2.extracted_text IS NOT NULL),
+            ''
+          ) AS attach_text
+        FROM items i
+        WHERE i.raw_text IS NOT NULL
+           OR EXISTS (
+               SELECT 1 FROM item_content ic
+               WHERE ic.item_id = i.id AND ic.extraction_status = 'success'
+           )
+        """
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def search_content(
+    conn: sqlite3.Connection, *, query: str, limit: int = 20
+) -> list[sqlite3.Row]:
+    """
+    FTS5 인덱스로 전문검색을 수행합니다.
+    Returns: 검색 결과 행 목록
+    """
+    return conn.execute(
+        """
+        SELECT
+          i.id,
+          i.source,
+          i.title,
+          i.url,
+          i.published_at,
+          i.importance,
+          i.summary,
+          snippet(content_fts, 2, '[', ']', '...', 24) AS body_snippet,
+          snippet(content_fts, 3, '[', ']', '...', 24) AS attach_snippet
+        FROM content_fts
+        JOIN items i ON i.id = content_fts.item_id
+        WHERE content_fts MATCH :query
+        ORDER BY rank
+        LIMIT :limit
+        """,
+        {"query": query, "limit": limit},
+    ).fetchall()
 
 
 def reset_sent_after(conn: sqlite3.Connection, after_date: str) -> int:

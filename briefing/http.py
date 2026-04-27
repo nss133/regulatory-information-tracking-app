@@ -51,3 +51,40 @@ class HttpClient:
                     time.sleep(2 ** attempt)  # 1s, 2s
         raise last_exc
 
+    def get_bytes(self, url: str) -> tuple[bytes, str]:
+        """
+        바이너리 파일을 다운로드합니다.
+        Returns: (content_bytes, mime_type)
+        """
+        headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "*/*",
+            "Accept-Language": "ko-KR,ko;q=0.9",
+            "Connection": "keep-alive",
+        }
+        _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+        last_exc: Exception = RuntimeError("unreachable")
+        for attempt in range(3):
+            try:
+                r = requests.get(
+                    url,
+                    headers=headers,
+                    timeout=self.timeout_seconds,
+                    verify=False,
+                )
+                if r.status_code in _RETRYABLE_STATUS and attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                r.raise_for_status()
+                mime_type = (
+                    r.headers.get("Content-Type", "application/octet-stream")
+                    .split(";")[0]
+                    .strip()
+                )
+                return r.content, mime_type
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_exc = e
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+        raise last_exc
+

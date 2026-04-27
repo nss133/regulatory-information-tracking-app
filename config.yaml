@@ -162,3 +162,16 @@ llm:
   model: "llama-3.3-70b-versatile"
   only_when_importance_at_least: "medium"
 
+archive:
+  enabled: true
+  kordoc_cli_path: "/Users/nsss/.claude/plugins/marketplaces/korean-law-marketplace/node_modules/kordoc/dist/cli.js"
+  attachment_sleep_seconds: 0.7   # 첨부파일 다운로드 간격 (초)
+  max_attachment_size_mb: 20      # 최대 첨부파일 크기
+  sources_for_attachments:        # 첨부파일 수집 우선 소스
+    - fsc
+    - fss
+    - kftc
+  body_harvest_days: 30           # body text 소급 수집 범위 (일)
+  body_harvest_limit: 100         # 1회 실행당 body 수집 최대 건수
+  attachment_harvest_limit: 50    # 1회 실행당 첨부파일 추출 최대 건수
+

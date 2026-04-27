@@ -11,14 +11,21 @@ from briefing.db import (
     mark_old_kofiu_announce_as_sent,
     mark_old_scourt_as_sent,
     mark_sent,
+    rebuild_fts,
     reset_sent_after,
+    search_content,
+    select_items_missing_body,
     select_last_sent_batch,
+    select_pending_attachments,
     select_pending_for_email,
+    update_attachment_result,
+    update_body_text,
+    upsert_attachment_record,
     upsert_items,
     update_item_enrichment,
 )
 from briefing.emailer import send_email, send_error_alert
-from briefing.extract import extract_main_text
+from briefing.extract import extract_main_text, extract_page_content
 from briefing.http import HttpClient
 from briefing.ranking import rank_item
 from briefing.render import render_email_html
@@ -185,7 +192,23 @@ def _enrich(conn, cfg, items) -> None:
         if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
             if _llm_call_count > 0:
                 _time.sleep(15)  # Groq TPM 한도 방지
-            body = extract_main_text(http, it.url)
+            try:
+                body, attachment_links = extract_page_content(http, it.url)
+            except Exception:
+                body = ""
+                attachment_links = []
+            # body text 저장 (raw_text가 없는 경우만)
+            if body and not it.raw_text:
+                update_body_text(conn, item_id=it.id, body_text=body)
+            # 첨부파일 링크 등록 (pending 상태로)
+            for label, att_url in attachment_links:
+                try:
+                    upsert_attachment_record(
+                        conn, item_id=it.id, source_url=att_url,
+                        label=label, tz_name=cfg.timezone,
+                    )
+                except Exception:
+                    pass
             spec = SOURCE_SPECS.get(it.source)
             res = summarize_with_llm(
                 llm=cfg.llm,
@@ -301,6 +324,124 @@ def cmd_run(args) -> int:
     if errors:
         print("(참고) 수집 오류가 있었으나 발송은 완료되었습니다.")
         send_error_alert(cfg=cfg.email, errors=errors, run_date=now_iso(cfg.timezone)[:10])
+
+    # 4) 콘텐츠 아카이브 (이메일 발송 후 실행, 실패해도 종료코드 영향 없음)
+    if cfg.archive.enabled:
+        try:
+            harvest_content(conn, cfg)
+        except Exception as e:
+            print(f"[harvest] 오류 (무시): {e}")
+
+    return 0
+
+
+def harvest_content(conn, cfg) -> None:
+    """
+    이메일 발송 후 실행: body text 수집 + 첨부파일 kordoc 추출 + FTS 재구축.
+    파이프라인 실패를 막지 않도록 모든 예외를 내부에서 처리합니다.
+    """
+    import time as _time
+    from briefing.kordoc import download_and_extract
+
+    arc = cfg.archive
+    http = HttpClient(
+        user_agent=cfg.fetch.user_agent,
+        timeout_seconds=60,
+    )
+
+    # 1) body text 미수집 항목 처리
+    items_no_body = select_items_missing_body(
+        conn, days=arc.body_harvest_days, limit=arc.body_harvest_limit
+    )
+    body_ok = 0
+    for row in items_no_body:
+        try:
+            body, attachment_links = extract_page_content(http, row["url"])
+            if body:
+                update_body_text(conn, item_id=row["id"], body_text=body)
+                body_ok += 1
+            for label, att_url in attachment_links:
+                upsert_attachment_record(
+                    conn, item_id=row["id"], source_url=att_url,
+                    label=label, tz_name=cfg.timezone,
+                )
+            _time.sleep(0.3)
+        except Exception as e:
+            print(f"  [harvest] body 수집 실패 {row['id']}: {e}")
+
+    # 2) 첨부파일 추출 (pending 상태)
+    pending = select_pending_attachments(conn, limit=arc.attachment_harvest_limit)
+    att_ok = att_fail = 0
+    for rec in pending:
+        # 지정 소스만 첨부파일 추출
+        if rec["source"] not in arc.sources_for_attachments:
+            continue
+        try:
+            mime_type, text, error = download_and_extract(
+                http,
+                rec["source_url"],
+                cli_path=arc.kordoc_cli_path,
+                sleep_seconds=arc.attachment_sleep_seconds,
+            )
+            status = "success" if error is None and text else "failed"
+            update_attachment_result(
+                conn,
+                item_id=rec["item_id"],
+                source_url=rec["source_url"],
+                mime_type=mime_type,
+                extracted_text=text or None,
+                status=status,
+                error=error,
+            )
+            if status == "success":
+                att_ok += 1
+            else:
+                att_fail += 1
+        except Exception as e:
+            print(f"  [harvest] 첨부 추출 실패 {rec['source_url']}: {e}")
+            att_fail += 1
+
+    # 3) FTS 재구축
+    fts_count = rebuild_fts(conn)
+    print(
+        f"[harvest] body {body_ok}/{len(items_no_body)}건 수집, "
+        f"첨부 {att_ok}건 성공/{att_fail}건 실패, "
+        f"FTS {fts_count}건 인덱싱 완료"
+    )
+
+
+def cmd_harvest(args) -> int:
+    """수동으로 콘텐츠 아카이브 수집을 실행합니다."""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    harvest_content(conn, cfg)
+    return 0
+
+
+def cmd_search(args) -> int:
+    """아카이브 전문검색."""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+
+    results = search_content(conn, query=args.query, limit=args.limit)
+    if not results:
+        print("검색 결과 없음.")
+        return 0
+
+    print(f"검색 결과: {len(results)}건\n{'─'*60}")
+    for r in results:
+        spec = SOURCE_SPECS.get(r["source"])
+        src_name = spec.name_ko if spec else r["source"]
+        imp = (r["importance"] or "low").upper()
+        print(f"[{src_name}] ({imp}) {r['title']}")
+        print(f"  날짜: {r['published_at'] or '-'}  URL: {r['url']}")
+        if r["body_snippet"]:
+            print(f"  본문: ...{r['body_snippet']}...")
+        if r["attach_snippet"]:
+            print(f"  첨부: ...{r['attach_snippet']}...")
+        print()
     return 0
 
 
@@ -358,6 +499,8 @@ def build_parser() -> argparse.ArgumentParser:
         ("run", cmd_run),
         ("reset-sent", cmd_reset_sent),
         ("resend-last", cmd_resend_last),
+        ("harvest", cmd_harvest),
+        ("search", cmd_search),
     ]:
         sp = sub.add_parser(name)
         sp.add_argument("--config", required=True, help="config.yaml 경로")
@@ -377,6 +520,9 @@ def build_parser() -> argparse.ArgumentParser:
                 metavar="YYYY-MM-DD",
                 help="이 날짜 이후 발송된 항목을 미발송으로 되돌림",
             )
+        if name == "search":
+            sp.add_argument("--query", required=True, help="검색어 (예: '과징금 보험업법')")
+            sp.add_argument("--limit", type=int, default=20, help="최대 결과 수 (기본: 20)")
         sp.set_defaults(_fn=fn)
     return p
 
