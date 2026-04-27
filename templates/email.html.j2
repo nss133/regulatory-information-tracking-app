@@ -9,13 +9,13 @@
         background-color: #ffffff;
         font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
         color: #111;
-        font-size: 13px;
-        line-height: 1.4;
+        font-size: 14px;
+        line-height: 1.5;
       }
 
       /* ── 상단 메타 ── */
       .top-meta {
-        font-size: 11px;
+        font-size: 12px;
         color: #888;
         margin-bottom: 12px;
         border-bottom: 2px solid #111;
@@ -26,11 +26,11 @@
       .section { margin-bottom: 20px; }
 
       .sec-header {
-        font-size: 12px;
+        font-size: 14px;
         font-weight: 700;
-        letter-spacing: 0.08em;
-        margin-bottom: 6px;
-        padding-bottom: 3px;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
         border-bottom: 1px solid #ddd;
       }
       .sec-header-high   { color: #c00; border-color: #c00; }
@@ -39,7 +39,7 @@
 
       /* ── 아이템 ── */
       .item {
-        padding: 6px 0;
+        padding: 8px 0;
         border-bottom: 1px solid #f0f0f0;
       }
       .item:last-child { border-bottom: none; }
@@ -48,9 +48,9 @@
       .item-meta { margin-bottom: 2px; line-height: 1.6; }
       .tag {
         display: inline-block;
-        padding: 0 6px;
+        padding: 1px 8px;
         border-radius: 2px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 600;
         margin-right: 4px;
         vertical-align: middle;
@@ -59,23 +59,23 @@
       .tag-kind    { background-color: #f3f0ff; color: #6c3fc7; }
       .tag-new     { background-color: #e6f4ea; color: #1b6b3a; }
       .tag-updated { background-color: #fef3e2; color: #92400e; }
-      .item-date   { font-size: 11px; color: #aaa; vertical-align: middle; }
+      .item-date   { font-size: 12px; color: #aaa; vertical-align: middle; }
 
       /* ── 제목 ── */
       .item-title {
         display: block;
-        font-size: 13px;
-        font-weight: 700;
+        font-size: 14px;
+        font-weight: 600;
         color: #111;
         text-decoration: none;
-        margin: 1px 0 4px;
+        margin: 2px 0 4px;
         line-height: 1.4;
       }
       .item-title:hover { text-decoration: underline; }
 
       /* ── 요약 ── */
       .item-summary {
-        font-size: 12px;
+        font-size: 13px;
         color: #444;
         line-height: 1.6;
         margin-bottom: 3px;
@@ -85,14 +85,14 @@
 
       /* ── 이유 (summary 없을 때) ── */
       .item-reason {
-        font-size: 11px;
+        font-size: 12px;
         color: #777;
-        line-height: 1.45;
+        line-height: 1.5;
       }
 
       /* ── 첨부 ── */
       .item-attach {
-        font-size: 11px;
+        font-size: 12px;
         color: #aaa;
         margin-top: 2px;
       }
@@ -116,7 +116,7 @@
       }
 
       /* ── 푸터 ── */
-      .footer { font-size: 11px; color: #bbb; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }
+      .footer { font-size: 12px; color: #bbb; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }
     </style>
   </head>
   <body>
@@ -139,7 +139,7 @@
             {%- elif sec_key == 'medium' -%}◆ MEDIUM
             {%- else -%}● LOW
             {%- endif -%}
-            &nbsp;<span style="font-weight:400; font-size:11px;">({{ sec.items|length }}건)</span>
+            &nbsp;<span style="font-weight:400; font-size:12px;">({{ sec.items|length }}건)</span>
           </div>
 
           {% for it in sec.items %}
@@ -181,7 +181,7 @@
                         <span class="tag tag-source">{{ child.source_name_ko }}</span>
                         <span class="tag tag-kind">{{ child.category_label }}</span>
                       </div>
-                      <a class="item-title" href="{{ child.url }}" style="font-size:13px;">{{ child.title }}</a>
+                      <a class="item-title" href="{{ child.url }}">{{ child.title }}</a>
                       {% if child.reason %}<div class="item-reason">{{ child.reason }}</div>{% endif %}
                       {% if child.attachments|length > 0 %}
                         <div class="item-attach">
