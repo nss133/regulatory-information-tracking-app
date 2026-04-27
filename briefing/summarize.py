@@ -105,7 +105,7 @@ def summarize_with_llm(
             data = _extract_json(text)
         except Exception as e:
             return LlmResult(importance=None, summary=None, reason=f"LLM 호출 실패: {e}")
-    elif llm.provider in ("openai", "groq"):
+    elif llm.provider in ("openai", "groq", "deepseek"):
         try:
             from openai import OpenAI  # type: ignore
         except Exception:

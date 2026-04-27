@@ -156,10 +156,10 @@ filter:
 
 llm:
   enabled: true
-  provider: "groq"
-  api_key_env: "GROQ_API_KEY"
-  base_url: "https://api.groq.com/openai/v1"
-  model: "llama-3.3-70b-versatile"
+  provider: "deepseek"
+  api_key_env: "DEEPSEEK_API_KEY"
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
   only_when_importance_at_least: "medium"
 
 archive:
