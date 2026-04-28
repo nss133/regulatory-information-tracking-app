@@ -17,7 +17,7 @@ class HttpClient:
     user_agent: str
     timeout_seconds: int = 20
 
-    def get_text(self, url: str, *, params: Optional[dict[str, str]] = None) -> str:
+    def get_text(self, url: str, *, params: Optional[dict[str, str]] = None, extra_headers: Optional[dict] = None) -> str:
         headers = {
             "User-Agent": self.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -25,6 +25,8 @@ class HttpClient:
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
         }
+        if extra_headers:
+            headers.update(extra_headers)
         _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
         last_exc: Exception = RuntimeError("unreachable")
         for attempt in range(3):
@@ -49,6 +51,41 @@ class HttpClient:
                 last_exc = e
                 if attempt < 2:
                     time.sleep(2 ** attempt)  # 1s, 2s
+        raise last_exc
+
+    def post_text(self, url: str, *, data: Optional[dict] = None, extra_headers: Optional[dict] = None) -> str:
+        """form data로 POST 요청. get_text와 동일한 재시도/인코딩 로직 사용."""
+        headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+        _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+        last_exc: Exception = RuntimeError("unreachable")
+        for attempt in range(3):
+            try:
+                r = requests.post(
+                    url,
+                    data=data,
+                    headers=headers,
+                    timeout=self.timeout_seconds,
+                    verify=False,
+                )
+                if r.status_code in _RETRYABLE_STATUS and attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                r.raise_for_status()
+                if not r.encoding:
+                    r.encoding = r.apparent_encoding
+                return r.text
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_exc = e
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
         raise last_exc
 
     def get_bytes(self, url: str) -> tuple[bytes, str]:

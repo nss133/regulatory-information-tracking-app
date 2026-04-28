@@ -386,6 +386,27 @@ def mark_old_kofiu_announce_as_sent(conn: sqlite3.Connection, *, tz_name: str) -
     return cur.rowcount
 
 
+def mark_old_na_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
+    """
+    첫 실행 시 이미 DB에 있는 NA 의안(30일 이전)을 발송 완료 처리.
+    과거 누적 의안이 한꺼번에 발송되는 것을 방지.
+    """
+    now = now_iso(tz_name)
+    today = now[:10]
+    cur = conn.execute(
+        """
+        UPDATE items
+        SET last_sent_at = :now, sent_hash = content_hash
+        WHERE source = 'na'
+          AND last_sent_at IS NULL
+          AND (published_at IS NULL OR published_at < date(:today, '-30 days'))
+        """,
+        {"now": now, "today": today},
+    )
+    conn.commit()
+    return cur.rowcount
+
+
 def mark_old_scourt_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
     """
     대법원(보도자료/주요판결) 중, 오늘 이전에 게시된 미발송 건은
