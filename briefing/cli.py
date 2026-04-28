@@ -197,8 +197,8 @@ def _enrich(conn, cfg, items) -> None:
             except Exception:
                 body = ""
                 attachment_links = []
-            # body text 저장 (raw_text가 없는 경우만)
-            if body and not it.raw_text:
+            # body text 저장 (update_body_text 내부 WHERE raw_text IS NULL로 idempotent)
+            if body:
                 update_body_text(conn, item_id=it.id, body_text=body)
             # 첨부파일 링크 등록 (pending 상태로)
             for label, att_url in attachment_links:
