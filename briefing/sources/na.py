@@ -101,7 +101,7 @@ class NaAssemblyConnector(SourceConnector):
 
     code = "na"
 
-    def __init__(self, http: HttpClient):
+    def __init__(self, http: HttpClient, max_items: int = 50):
         self._http = http
 
     def fetch_latest(self) -> list[FetchedItem]:
