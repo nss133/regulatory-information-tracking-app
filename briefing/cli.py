@@ -284,6 +284,12 @@ def cmd_run(args) -> int:
 
     if not pending:
         print("발송 대상 없음(신규/변경 없음)")
+        # 발송 대상이 없어도 harvest는 실행 (body/첨부 수집 + FTS 갱신)
+        if cfg.archive.enabled:
+            try:
+                harvest_content(conn, cfg)
+            except Exception as e:
+                print(f"[harvest] 오류 (무시): {e}")
         return 0
 
     subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (신규/변경 {len(pending)}건)"
