@@ -27,6 +27,7 @@ class StoredItem:
     last_changed_at: str
     last_sent_at: Optional[str]
     sent_hash: Optional[str]
+    raw_text: Optional[str] = None
 
 
 def connect(sqlite_path: str) -> sqlite3.Connection:
@@ -190,7 +191,7 @@ def select_pending_for_email(
           id, source, category, source_item_key, title, url,
           published_at, attachments_json, content_hash,
           importance, importance_reason, summary,
-          last_changed_at, last_sent_at, sent_hash
+          last_changed_at, last_sent_at, sent_hash, raw_text
         FROM items
         WHERE (last_sent_at IS NULL
            OR sent_hash IS NULL
@@ -248,6 +249,7 @@ def select_pending_for_email(
                 last_changed_at=r["last_changed_at"],
                 last_sent_at=r["last_sent_at"],
                 sent_hash=r["sent_hash"],
+                raw_text=r["raw_text"],
             )
         )
     return out
@@ -265,7 +267,7 @@ def select_last_sent_batch(conn: sqlite3.Connection) -> list[StoredItem]:
           id, source, category, source_item_key, title, url,
           published_at, attachments_json, content_hash,
           importance, importance_reason, summary,
-          last_changed_at, last_sent_at, sent_hash
+          last_changed_at, last_sent_at, sent_hash, raw_text
         FROM items
         WHERE last_sent_at = :last_sent_at
           AND title NOT LIKE '%은행업감독규정%'
@@ -318,6 +320,7 @@ def select_last_sent_batch(conn: sqlite3.Connection) -> list[StoredItem]:
                 last_changed_at=r["last_changed_at"],
                 last_sent_at=r["last_sent_at"],
                 sent_hash=r["sent_hash"],
+                raw_text=r["raw_text"],
             )
         )
     return out

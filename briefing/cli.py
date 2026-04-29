@@ -203,11 +203,18 @@ def _enrich(conn, cfg, items) -> None:
         if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
             if _llm_call_count > 0 and _llm_sleep > 0:
                 _time.sleep(_llm_sleep)
-            try:
-                body, attachment_links = extract_page_content(http, it.url)
-            except Exception:
-                body = ""
+
+            # 국회(na)는 의안 상세페이지가 일정 정보 위주라, 별도 fetch한
+            # 제안이유·주요내용(raw_text)을 LLM 본문으로 사용
+            if it.source == "na" and it.raw_text:
+                body = it.raw_text
                 attachment_links = []
+            else:
+                try:
+                    body, attachment_links = extract_page_content(http, it.url)
+                except Exception:
+                    body = ""
+                    attachment_links = []
             # body text 저장 (update_body_text 내부 WHERE raw_text IS NULL로 idempotent)
             if body:
                 update_body_text(conn, item_id=it.id, body_text=body)

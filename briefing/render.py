@@ -41,7 +41,11 @@ class RenderSection:
     items: list[RenderItem]
 
 
-def _category_label(cat: str) -> str:
+def _category_label(cat: str, source: str | None = None) -> str:
+    # 국회(na)의 legislation은 실제 발의·통과된 법안이므로 '입법'으로 표시
+    # (다른 부처의 'legislation'은 입법예고이므로 '입법/예고'로 구분)
+    if cat == "legislation" and source == "na":
+        return "입법"
     return {
         "press": "보도자료",
         "legislation": "입법/예고",
@@ -129,7 +133,7 @@ def render_email_html(
                 title=it.title,
                 url=it.url,
                 published_at=it.published_at,
-                category_label=_category_label(it.category),
+                category_label=_category_label(it.category, it.source),
                 importance=importance,
                 reason=it.importance_reason or "",
                 summary=it.summary,
