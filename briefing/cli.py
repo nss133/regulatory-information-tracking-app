@@ -172,6 +172,17 @@ def _enrich(conn, cfg, items) -> None:
     import time as _time
     http = HttpClient(user_agent=cfg.fetch.user_agent, timeout_seconds=cfg.fetch.request_timeout_seconds)
     _llm_call_count = 0
+
+    # provider별 호출 간 대기시간(초). Groq는 TPM 한도가 작아 15초 유지,
+    # DeepSeek/OpenAI는 한도가 커서 1초로 충분.
+    _llm_sleep_by_provider = {
+        "groq": 15.0,
+        "deepseek": 1.0,
+        "openai": 1.0,
+        "anthropic": 1.0,
+    }
+    _llm_sleep = _llm_sleep_by_provider.get(cfg.llm.provider, 1.0)
+
     for it in items:
         rank = rank_item(title=it.title, raw_text=None, cfg=cfg.ranking)
         importance = rank.importance
@@ -190,8 +201,8 @@ def _enrich(conn, cfg, items) -> None:
             continue
 
         if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
-            if _llm_call_count > 0:
-                _time.sleep(15)  # Groq TPM 한도 방지
+            if _llm_call_count > 0 and _llm_sleep > 0:
+                _time.sleep(_llm_sleep)
             try:
                 body, attachment_links = extract_page_content(http, it.url)
             except Exception:
