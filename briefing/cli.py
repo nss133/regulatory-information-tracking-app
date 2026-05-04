@@ -190,7 +190,10 @@ def _enrich(conn, cfg, items) -> None:
         summary = None
 
         # 대법원은 요약 없이 제목/중요도/첨부만 사용
+        # 보도자료/주요판결 모두 판결 소개 성격이므로 HIGH 강제
         if it.source == "scourt":
+            importance = "high"
+            reason = "대법원 판결 소개 자료"
             update_item_enrichment(
                 conn,
                 item_id=it.id,
