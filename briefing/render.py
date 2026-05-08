@@ -124,6 +124,11 @@ def render_email_html(
             t = it.title
             if "체불" in t and "제재" in t:
                 importance = "low"
+        # 이미 발송된 적이 있고 내용 변경된 항목(첨부파일 변경 등)은
+        # 독자에게 주는 정보 가치가 낮으므로 일괄 LOW 강등.
+        # LOW 표시 한도(15) 초과 시 자연스럽게 발송 제외됨.
+        if is_updated:
+            importance = "low"
         text_for_legal = f"{it.title} {it.importance_reason or ''}"
         has_legal = any(k in text_for_legal for k in legal_keywords)
         by_importance.setdefault(importance, []).append(
@@ -242,9 +247,10 @@ def render_email_html(
     if by_importance.get("medium"):
         by_importance["medium"] = _dedupe_medium(by_importance["medium"])
 
-    # LOW 섹션: 신규 우선, 신규+기존 합쳐서 최대 10건만 표시
+    # LOW 섹션: 신규 우선, 신규+변경 합쳐서 최대 15건만 표시
+    # (정렬 키에서 신규(new_score=1)가 변경(0)보다 위에 오므로 [:15]로 자연스럽게 변경 항목 제외)
     if by_importance.get("low"):
-        by_importance["low"] = by_importance["low"][:10]
+        by_importance["low"] = by_importance["low"][:15]
 
     sections: list[RenderSection] = [
         RenderSection(label="HIGH", items=by_importance.get("high", [])),
