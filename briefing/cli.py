@@ -190,10 +190,13 @@ def _enrich(conn, cfg, items) -> None:
         summary = None
 
         # 국회(na) 본회의 가결 의안은 실제 법령 통과를 의미하므로 HIGH 강제
-        # (법사위 심사 상정·법사위 회부 등 다른 마일스톤은 키워드 기반 평가 유지)
         if it.source == "na" and (it.title or "").startswith("[본회의 가결]"):
             importance = "high"
             reason = "국회 본회의 가결"
+        # 법사위 회부는 심사 전 단계이므로 MEDIUM 강제
+        elif it.source == "na" and (it.title or "").startswith("[법사위 회부]"):
+            importance = "medium"
+            reason = "국회 법사위 회부"
 
         # 대법원은 요약 없이 제목/중요도/첨부만 사용
         # 보도자료/주요판결 모두 판결 소개 성격이므로 HIGH 강제
