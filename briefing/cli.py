@@ -190,7 +190,7 @@ def _enrich(conn, cfg, items) -> None:
         summary = None
 
         # 국회(na) 본회의 가결 의안은 실제 법령 통과를 의미하므로 HIGH 강제
-        # (법사위 심사 상정·본회의 부의 등 다른 마일스톤은 키워드 기반 평가 유지)
+        # (법사위 심사 상정·법사위 회부 등 다른 마일스톤은 키워드 기반 평가 유지)
         if it.source == "na" and (it.title or "").startswith("[본회의 가결]"):
             importance = "high"
             reason = "국회 본회의 가결"
@@ -218,6 +218,14 @@ def _enrich(conn, cfg, items) -> None:
             if it.source == "na" and it.raw_text:
                 body = it.raw_text
                 attachment_links = []
+            elif it.source == "na" and not it.raw_text and (it.title or "").startswith("[법사위 회부]"):
+                summary = "법사위 상정 건으로 링크 확인 바람"
+                update_item_enrichment(
+                    conn, item_id=it.id,
+                    importance=importance, importance_reason=reason,
+                    summary=summary,
+                )
+                continue
             else:
                 try:
                     body, attachment_links = extract_page_content(http, it.url)

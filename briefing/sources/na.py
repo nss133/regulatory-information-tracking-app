@@ -11,6 +11,7 @@ from briefing.utils import normalize_ws, parse_yyyy_mm_dd
 
 _SUMMARY_URL = "https://likms.assembly.go.kr/bill/bi/popup/billSummary.do"
 _RE_WHITESPACE = re.compile(r"\s+")
+_RE_BILL_ERROR = re.compile(r"의안\s*정보를\s*찾을\s*수\s*없습니다")
 
 
 # 보험회사 관점에서 핵심적으로 보는 법률(정식 명칭 위주, 약칭도 일부 포함)
@@ -95,7 +96,7 @@ class NaAssemblyConnector(SourceConnector):
     국회 의안정보시스템 내부 Ajax API를 통해 3개 마일스톤을 추적합니다.
 
     1. 법사위 가결 (_fetch_judic_pass)
-    2. 본회의 부의 (_fetch_plenary_propose)
+    2. 법사위 회부 (_fetch_plenary_propose)
     3. 본회의 가결 (_fetch_plenary_pass)
     """
 
@@ -128,7 +129,10 @@ class NaAssemblyConnector(SourceConnector):
         pre = soup.find("pre")
         if pre:
             text = pre.get_text(" ", strip=True)
-            return _RE_WHITESPACE.sub(" ", text).strip() or None
+            text = _RE_WHITESPACE.sub(" ", text).strip() or None
+            if text and _RE_BILL_ERROR.search(text):
+                return None
+            return text
         # fallback: strip tags from full body
         body = soup.find("body")
         if body:
@@ -255,7 +259,7 @@ class NaAssemblyConnector(SourceConnector):
 
         return items
 
-    # ── API 2: 본회의 부의 ──────────────────────────────────────────────────
+    # ── API 2: 법사위 회부 (위원회 대안 의결 → 법사위 체계자구심사 전) ──────
 
     def _fetch_plenary_propose(self) -> list[FetchedItem]:
         params = {
@@ -310,8 +314,8 @@ class NaAssemblyConnector(SourceConnector):
                 FetchedItem(
                     source="na",
                     category="legislation",
-                    source_item_key=f"본회의 부의:{bill_id}",
-                    title=f"[본회의 부의] {title}",
+                    source_item_key=f"법사위 회부:{bill_id}",
+                    title=f"[법사위 회부] {title}",
                     url=_bill_url(bill_id),
                     published_at=published_at,
                     attachments=[],
