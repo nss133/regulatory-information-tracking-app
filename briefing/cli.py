@@ -9,7 +9,6 @@ from briefing.db import (
     connect,
     init_db,
     mark_old_kofiu_announce_as_sent,
-    mark_old_scourt_as_sent,
     mark_sent,
     rebuild_fts,
     reset_sent_after,
@@ -144,7 +143,6 @@ def cmd_preview(args) -> int:
             errors.append(f"{c.code}: {e}")
     upsert_items(conn, fetched, tz_name=cfg.timezone)
     mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
-    mark_old_scourt_as_sent(conn, tz_name=cfg.timezone)
 
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
@@ -306,10 +304,9 @@ def cmd_run(args) -> int:
     if n_marked_kofiu:
         print(f"KoFIU 공고/고시/훈령/예규 기존 자료 {n_marked_kofiu}건 발송 제외(앞으로 업데이트분만 반영)")
 
-    # 대법원 보도자료/주요판결: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
-    n_marked_scourt = mark_old_scourt_as_sent(conn, tz_name=cfg.timezone)
-    if n_marked_scourt:
-        print(f"대법원 기존 자료 {n_marked_scourt}건 발송 제외(앞으로 업데이트분만 반영)")
+    # 대법원: 과거 mark_old_scourt_as_sent 호출은 매번 실행되어 신규
+    # 판결까지 silent 처리해버리는 문제가 있어 제거. 7일 필터로 충분히
+    # 통제되며, 대법원은 HIGH로 강제 노출하는 정책 유지.
 
     # 2) 발송 대상
     pending = select_pending_for_email(
