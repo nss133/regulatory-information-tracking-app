@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from briefing.db import StoredItem
 from briefing.sources.registry import SOURCE_SPECS
@@ -73,7 +73,9 @@ def render_email_html(
 ) -> str:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
-        autoescape=select_autoescape(["html", "xml"]),
+        # 템플릿 확장자가 .j2라 select_autoescape가 적용되지 않아 무조건 켭니다.
+        # (대법원 사건명에 '<...>' 패턴이 들어가 메일 본문이 잘려 보이는 문제 방지)
+        autoescape=True,
     )
     tpl = env.get_template("email.html.j2")
 
