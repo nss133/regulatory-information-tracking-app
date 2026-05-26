@@ -95,6 +95,15 @@ class RankingConfig:
 
 
 @dataclass(frozen=True)
+class ScourtRankingConfig:
+    """대법원 주요판결(case_law) 전용 키워드 분류 설정.
+    low → high → medium → 기본 LOW 순으로 매칭."""
+    high_keywords: list[str]
+    medium_keywords: list[str]
+    low_keywords: list[str]
+
+
+@dataclass(frozen=True)
 class FilterConfig:
     """발송 대상 필터. published_at이 N일 이내인 항목만 포함."""
     max_days_since_published: int
@@ -132,6 +141,7 @@ class AppConfig:
     fetch: FetchConfig
     email: EmailConfig
     ranking: RankingConfig
+    scourt_ranking: ScourtRankingConfig
     filter_config: FilterConfig
     llm: LlmConfig
     archive: ArchiveConfig
@@ -168,6 +178,7 @@ def load_config(path: str | Path) -> AppConfig:
     email_raw = _get(raw, "email")
     smtp_raw = _get(email_raw, "smtp")
     ranking_raw = _get(raw, "ranking")
+    scourt_raw = raw.get("scourt_ranking", {})
     filter_raw = raw.get("filter", {})
     llm_raw = _get(raw, "llm")
     archive_raw = raw.get("archive", {})
@@ -202,6 +213,11 @@ def load_config(path: str | Path) -> AppConfig:
             high_keywords=list(_get(ranking_raw, "high_keywords", [])),
             medium_keywords=list(_get(ranking_raw, "medium_keywords", [])),
             combo_rules=_load_combo_rules(ranking_raw.get("combo_rules", {})),
+        ),
+        scourt_ranking=ScourtRankingConfig(
+            high_keywords=[str(k) for k in scourt_raw.get("high_keywords", [])],
+            medium_keywords=[str(k) for k in scourt_raw.get("medium_keywords", [])],
+            low_keywords=[str(k) for k in scourt_raw.get("low_keywords", [])],
         ),
         filter_config=FilterConfig(
             max_days_since_published=int(

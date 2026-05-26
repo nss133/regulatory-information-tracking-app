@@ -99,6 +99,37 @@ def render_email_html(
 
     items = [it for it in items if not _should_exclude(it)]
 
+    # 대법원 press(보도자료) ↔ case_law(주요판결) 동일 판결 중복 제거.
+    # case_law 제목 '사건유형 <상세설명>'에서 <...> 안 내용을 press 제목과 비교,
+    # 60%+ 유사하면 case_law 제거 (press가 더 간결하므로 살림).
+    def _norm_words(s: str) -> set[str]:
+        return set(re.findall(r"[\w]+", (s or "").lower()))
+
+    def _scourt_sim(a: str, b: str) -> float:
+        wa, wb = _norm_words(a), _norm_words(b)
+        if not wa or not wb:
+            return 0.0
+        return len(wa & wb) / min(len(wa), len(wb))
+
+    scourt_press_titles = [
+        it.title for it in items if it.source == "scourt" and it.category == "press"
+    ]
+    if scourt_press_titles:
+        remove_ids: set[str] = set()
+        for it in items:
+            if it.source != "scourt" or it.category != "case_law":
+                continue
+            m = re.search(r"<(.+?)>", it.title or "")
+            if not m:
+                continue
+            inner = m.group(1)
+            for pt in scourt_press_titles:
+                if _scourt_sim(inner, pt) >= 0.6:
+                    remove_ids.add(it.id)
+                    break
+        if remove_ids:
+            items = [it for it in items if it.id not in remove_ids]
+
     by_importance: dict[str, list[RenderItem]] = {"high": [], "medium": [], "low": []}
     # '규정/입법예고/법령/시행령/감독규정' 등 법·규정성 키워드가 있으면
     # 같은 중요도 안에서는 더 위에 보이도록 가중치를 줄 것입니다.

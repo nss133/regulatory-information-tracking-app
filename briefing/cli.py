@@ -196,11 +196,25 @@ def _enrich(conn, cfg, items) -> None:
             importance = "medium"
             reason = "국회 법사위 회부"
 
-        # 대법원은 요약 없이 제목/중요도/첨부만 사용
-        # 보도자료/주요판결 모두 판결 소개 성격이므로 HIGH 강제
+        # 대법원은 요약 없이 제목/중요도/첨부만 사용.
+        # - 보도자료(press): 대법원이 의도적으로 골라낸 자료 → HIGH 유지
+        # - 주요판결(case_law): 키워드 분류 (low → high → medium → 기본 LOW)
         if it.source == "scourt":
-            importance = "high"
-            reason = "대법원 판결 소개 자료"
+            if it.category == "press":
+                importance = "high"
+                reason = "대법원 보도자료"
+            else:
+                title_lower = (it.title or "").lower()
+                scr = cfg.scourt_ranking
+                matched = None
+                if any(k.lower() in title_lower for k in scr.low_keywords):
+                    importance, reason, matched = "low", "대법원 판결(무관)", "low"
+                elif any(k.lower() in title_lower for k in scr.high_keywords):
+                    importance, reason, matched = "high", "대법원 판결(보험사 관련)", "high"
+                elif any(k.lower() in title_lower for k in scr.medium_keywords):
+                    importance, reason, matched = "medium", "대법원 판결(일반 법령)", "medium"
+                else:
+                    importance, reason = "low", "대법원 판결(키워드 매칭 없음)"
             update_item_enrichment(
                 conn,
                 item_id=it.id,
