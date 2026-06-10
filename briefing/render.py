@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from briefing.db import StoredItem
 from briefing.sources.registry import SOURCE_SPECS
+from briefing.sources.urls import SCOURT_PRESS_LIST
 
 
 @dataclass(frozen=True)
@@ -279,6 +280,52 @@ def render_email_html(
 
     if by_importance.get("medium"):
         by_importance["medium"] = _dedupe_medium(by_importance["medium"])
+
+    # 같은 날 대법원 보도자료가 여러 건이면(선고/결정일 쏠림) 하나의 묶음 카드로
+    # 접어 한 소스가 섹션을 도배하지 않게 한다. 개별 건은 child_items로 들어가
+    # 제목·첨부가 그대로 보존된다.
+    def _group_scourt_press(items: list[RenderItem]) -> list[RenderItem]:
+        SCOURT_GROUP_THRESHOLD = 3
+        groups: dict[str, list[RenderItem]] = {}
+        for it in items:
+            if it.source_code == "scourt" and it.category_label == "보도자료":
+                groups.setdefault(it.published_at or "", []).append(it)
+        collapse = {d for d, g in groups.items() if len(g) >= SCOURT_GROUP_THRESHOLD}
+        if not collapse:
+            return items
+
+        out: list[RenderItem] = []
+        emitted: set[str] = set()
+        for it in items:
+            d = it.published_at or ""
+            is_scourt_press = it.source_code == "scourt" and it.category_label == "보도자료"
+            if is_scourt_press and d in collapse:
+                if d in emitted:
+                    continue
+                emitted.add(d)
+                members = groups[d]
+                out.append(
+                    RenderItem(
+                        source_code="scourt",
+                        source_name_ko=it.source_name_ko,
+                        title=f"대법원 보도자료 · {d} 선고·결정 {len(members)}건",
+                        url=SCOURT_PRESS_LIST,
+                        published_at=d,
+                        category_label="보도자료",
+                        importance=it.importance,
+                        reason="이날 선고·결정 묶음 — 아래 펼침",
+                        summary=None,
+                        is_updated=False,
+                        attachments=[],
+                        child_items=list(members),
+                    )
+                )
+            else:
+                out.append(it)
+        return out
+
+    for k in list(by_importance.keys()):
+        by_importance[k] = _group_scourt_press(by_importance[k])
 
     # LOW 섹션: 신규 우선, 신규+변경 합쳐서 최대 15건만 표시
     # (정렬 키에서 신규(new_score=1)가 변경(0)보다 위에 오므로 [:15]로 자연스럽게 변경 항목 제외)

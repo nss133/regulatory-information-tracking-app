@@ -197,23 +197,37 @@ def _enrich(conn, cfg, items) -> None:
             reason = "국회 법사위 회부"
 
         # 대법원은 요약 없이 제목/중요도/첨부만 사용. 키워드 기반 분류:
-        # - 보도자료(press): high_keywords 매칭 → HIGH, 아니면 MEDIUM
-        #   (대법원이 골라낸 자료이므로 LOW로 떨어뜨리지 않음)
+        # 제목이 서술형('일시적으로 2주택을 보유한 원고가 종전 주택의 양도에…')이라
+        # 제목만으로는 세금·행정 등 무관 주제를 놓치기 쉬우므로, 본문(raw_text)까지
+        # 함께 매칭한다(low → high → medium 순).
+        # - 보도자료(press): low(무관)→LOW, high(보험사 관련)→HIGH, 그 외 기본 MEDIUM
+        #   (선고일에 세금·행정 판결이 한꺼번에 쏟아져 MEDIUM을 도배하던 문제를
+        #    low_keywords 적용으로 차단. 종전엔 press에 low를 적용하지 않았음)
         # - 주요판결(case_law): low → high → medium → 기본 LOW
         if it.source == "scourt":
-            title_lower = (it.title or "").lower()
             scr = cfg.scourt_ranking
+            hay = f"{it.title or ''}\n{it.raw_text or ''}".lower()
+            has_low = any(k.lower() in hay for k in scr.low_keywords)
+            has_high = any(k.lower() in hay for k in scr.high_keywords)
+            has_medium = any(k.lower() in hay for k in scr.medium_keywords)
             if it.category == "press":
-                if any(k.lower() in title_lower for k in scr.high_keywords):
+                if "요지" in (it.title or ""):
+                    # 그 주의 중요판결/결정을 한데 모은 '요지(종합)' 보도자료.
+                    # 모든 주제를 집계해 키워드가 뒤섞이므로 분류하지 않고
+                    # MEDIUM 색인으로 둔다(개별 사건은 별도 보도자료로 들어옴).
+                    importance, reason = "medium", "대법원 보도자료(요지 종합)"
+                elif has_low:
+                    importance, reason = "low", "대법원 보도자료(무관 주제)"
+                elif has_high:
                     importance, reason = "high", "대법원 보도자료(보험사 관련)"
                 else:
                     importance, reason = "medium", "대법원 보도자료"
             else:
-                if any(k.lower() in title_lower for k in scr.low_keywords):
+                if has_low:
                     importance, reason = "low", "대법원 판결(무관)"
-                elif any(k.lower() in title_lower for k in scr.high_keywords):
+                elif has_high:
                     importance, reason = "high", "대법원 판결(보험사 관련)"
-                elif any(k.lower() in title_lower for k in scr.medium_keywords):
+                elif has_medium:
                     importance, reason = "medium", "대법원 판결(일반 법령)"
                 else:
                     importance, reason = "low", "대법원 판결(키워드 매칭 없음)"
