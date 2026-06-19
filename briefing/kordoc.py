@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import subprocess
 import tempfile
 import time
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -120,6 +122,12 @@ def download_and_extract(
 
     try:
         text, error = extract_text_with_kordoc(tmp_path, cli_path=cli_path)
+        # ZIP 번들 폴백: PK 아카이브가 HWPX로 오인되어 실패한 경우,
+        # 압축을 풀어 내부 문서(.hwp/.pdf 등)를 각각 추출·병합한다.
+        if error and content[:4] == b"PK\x03\x04":
+            z_text, _z_error = _extract_zip_members(content, cli_path=cli_path)
+            if z_text:
+                text, error = z_text, None
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -164,3 +172,41 @@ def _guess_extension(content: bytes, mime_type: str, url: str) -> str:
             return ext
 
     return ".bin"
+
+
+def _extract_zip_members(
+    content: bytes, *, cli_path: str = DEFAULT_KORDOC_CLI
+) -> tuple[str, Optional[str]]:
+    """
+    ZIP 아카이브(.zip 번들)를 풀어 내부 문서를 각각 kordoc으로 추출·병합합니다.
+    HWPX로 오인되었으나 실제로는 여러 문서를 담은 압축파일인 경우에 사용합니다.
+    Returns: (merged_text, error_message or None)
+    """
+    parts: list[str] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            for name in zf.namelist():
+                ext = Path(name).suffix.lower()
+                if ext not in _ATTACHMENT_EXTENSIONS:
+                    continue
+                try:
+                    data = zf.read(name)
+                except Exception:
+                    continue
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                    tmp.write(data)
+                    inner_path = Path(tmp.name)
+                try:
+                    inner_text, _ = extract_text_with_kordoc(inner_path, cli_path=cli_path)
+                    if inner_text:
+                        parts.append(f"[{name}]\n{inner_text}")
+                finally:
+                    inner_path.unlink(missing_ok=True)
+    except zipfile.BadZipFile:
+        return "", "ZIP 형식 아님"
+    except Exception as e:
+        return "", f"ZIP 처리 오류: {str(e)[:150]}"
+
+    if parts:
+        return "\n\n".join(parts), None
+    return "", "ZIP 내 추출 가능한 문서 없음"

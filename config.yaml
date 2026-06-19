@@ -241,5 +241,5 @@ archive:
     - kftc
   body_harvest_days: 30           # body text 소급 수집 범위 (일)
   body_harvest_limit: 100         # 1회 실행당 body 수집 최대 건수
-  attachment_harvest_limit: 50    # 1회 실행당 첨부파일 추출 최대 건수
+  attachment_harvest_limit: 200   # 1회 실행당 첨부파일 추출 최대 건수
 

@@ -516,9 +516,28 @@ def select_items_missing_body(
 
 
 def select_pending_attachments(
-    conn: sqlite3.Connection, *, limit: int = 50
+    conn: sqlite3.Connection, *, limit: int = 50, sources=None
 ) -> list[sqlite3.Row]:
-    """extraction_status가 'pending'인 첨부파일 레코드를 반환합니다."""
+    """extraction_status가 'pending'인 첨부파일 레코드를 반환합니다.
+
+    sources가 주어지면 해당 소스만 선택한다. 비우선 소스의 pending이
+    최신순(LIMIT) 윈도우를 점유해 우선 소스가 영구히 굶는 적체를 방지하기
+    위함이다(소스 필터를 Python 후속 skip이 아니라 SQL 선택 단계로 끌어올림).
+    """
+    if sources:
+        placeholders = ",".join("?" * len(sources))
+        return conn.execute(
+            f"""
+            SELECT ic.item_id, ic.source_url, ic.label, i.source
+            FROM item_content ic
+            JOIN items i ON i.id = ic.item_id
+            WHERE ic.extraction_status = 'pending'
+              AND i.source IN ({placeholders})
+            ORDER BY i.published_at DESC
+            LIMIT ?
+            """,
+            (*tuple(sources), limit),
+        ).fetchall()
     return conn.execute(
         """
         SELECT ic.item_id, ic.source_url, ic.label, i.source

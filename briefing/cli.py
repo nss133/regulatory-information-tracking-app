@@ -441,7 +441,9 @@ def harvest_content(conn, cfg) -> None:
             print(f"  [harvest] body 수집 실패 {row['id']}: {e}")
 
     # 2) 첨부파일 추출 (pending 상태)
-    pending = select_pending_attachments(conn, limit=arc.attachment_harvest_limit)
+    pending = select_pending_attachments(
+        conn, limit=arc.attachment_harvest_limit, sources=arc.sources_for_attachments
+    )
     att_ok = att_fail = 0
     for rec in pending:
         # 지정 소스만 첨부파일 추출
