@@ -28,6 +28,8 @@ class StoredItem:
     last_sent_at: Optional[str]
     sent_hash: Optional[str]
     raw_text: Optional[str] = None
+    relevance_score: Optional[int] = None
+    relevance_evidence: Optional[str] = None
 
 
 def connect(sqlite_path: str) -> sqlite3.Connection:
@@ -69,6 +71,13 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_source ON items(source)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_last_seen ON items(last_seen_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_last_sent ON items(last_sent_at)")
+
+    # 미래에셋생명 관련성(relevance) shadow 컬럼 — 노출(등급·정렬) 미반영, 기록만.
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(items)")}
+    if "relevance_score" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN relevance_score INTEGER")
+    if "relevance_evidence" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN relevance_evidence TEXT")
 
     # 첨부파일 텍스트 아카이브
     conn.execute(
@@ -191,7 +200,8 @@ def select_pending_for_email(
           id, source, category, source_item_key, title, url,
           published_at, attachments_json, content_hash,
           importance, importance_reason, summary,
-          last_changed_at, last_sent_at, sent_hash, raw_text
+          last_changed_at, last_sent_at, sent_hash, raw_text,
+          relevance_score, relevance_evidence
         FROM items
         WHERE (last_sent_at IS NULL
            OR sent_hash IS NULL
@@ -250,6 +260,8 @@ def select_pending_for_email(
                 last_sent_at=r["last_sent_at"],
                 sent_hash=r["sent_hash"],
                 raw_text=r["raw_text"],
+                relevance_score=r["relevance_score"],
+                relevance_evidence=r["relevance_evidence"],
             )
         )
     return out
@@ -267,7 +279,8 @@ def select_last_sent_batch(conn: sqlite3.Connection) -> list[StoredItem]:
           id, source, category, source_item_key, title, url,
           published_at, attachments_json, content_hash,
           importance, importance_reason, summary,
-          last_changed_at, last_sent_at, sent_hash, raw_text
+          last_changed_at, last_sent_at, sent_hash, raw_text,
+          relevance_score, relevance_evidence
         FROM items
         WHERE last_sent_at = :last_sent_at
           AND title NOT LIKE '%은행업감독규정%'
@@ -321,6 +334,8 @@ def select_last_sent_batch(conn: sqlite3.Connection) -> list[StoredItem]:
                 last_sent_at=r["last_sent_at"],
                 sent_hash=r["sent_hash"],
                 raw_text=r["raw_text"],
+                relevance_score=r["relevance_score"],
+                relevance_evidence=r["relevance_evidence"],
             )
         )
     return out
@@ -348,6 +363,25 @@ def update_item_enrichment(
             "importance_reason": importance_reason,
             "summary": summary,
         },
+    )
+    conn.commit()
+
+
+def update_item_relevance(
+    conn: sqlite3.Connection,
+    *,
+    item_id: str,
+    relevance_score: int,
+    relevance_evidence: Optional[str],
+) -> None:
+    conn.execute(
+        """
+        UPDATE items
+        SET relevance_score = :score,
+            relevance_evidence = :evidence
+        WHERE id = :id
+        """,
+        {"id": item_id, "score": relevance_score, "evidence": relevance_evidence},
     )
     conn.commit()
 

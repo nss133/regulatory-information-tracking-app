@@ -22,11 +22,14 @@ from briefing.db import (
     upsert_attachment_record,
     upsert_items,
     update_item_enrichment,
+    update_item_relevance,
 )
 from briefing.emailer import send_email, send_error_alert
 from briefing.extract import extract_main_text, extract_page_content
 from briefing.http import HttpClient
 from briefing.ranking import rank_item
+from briefing.relevance import build_score_text, build_scorer
+from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email_html
 from briefing.sources import build_connectors
 from briefing.sources.registry import SOURCE_SPECS
@@ -40,7 +43,8 @@ def _render_text(items) -> str:
         spec = SOURCE_SPECS.get(it.source)
         src = spec.name_ko if spec else it.source
         tag = (it.importance or "low").upper()
-        lines.append(f"[{src}] ({tag}) {it.title}")
+        star = "★ " if (it.relevance_score or 0) >= RELEVANCE_STAR_THRESHOLD else ""
+        lines.append(f"{star}[{src}] ({tag}) {it.title}")
         lines.append(f"- {it.url}")
         if it.published_at:
             lines.append(f"- 날짜: {it.published_at}")
@@ -91,20 +95,47 @@ def _heuristic_summary(body: str) -> str | None:
     return None
 
 
+def _fetch_all(cfg) -> tuple[list, list[str]]:
+    """모든 소스를 병렬 수집하고 소스별 소요시간을 출력합니다.
+
+    Returns: (fetched_items, errors)
+    """
+    import time as _time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    connectors = build_connectors(cfg.fetch)
+
+    def _one(c):
+        t0 = _time.perf_counter()
+        try:
+            return c.code, c.fetch_latest(), None, _time.perf_counter() - t0
+        except Exception as e:
+            return c.code, [], str(e), _time.perf_counter() - t0
+
+    fetched: list = []
+    errors: list[str] = []
+    timings: dict[str, float] = {}
+    t0 = _time.perf_counter()
+    with ThreadPoolExecutor(max_workers=max(1, len(connectors))) as ex:
+        for f in as_completed([ex.submit(_one, c) for c in connectors]):
+            code, items, err, dt = f.result()
+            fetched.extend(items)
+            timings[code] = dt
+            if err:
+                errors.append(f"{code}: {err}")
+    slow = "·".join(
+        f"{k} {v:.1f}s" for k, v in sorted(timings.items(), key=lambda kv: -kv[1])[:3]
+    )
+    print(f"[timing] fetch {_time.perf_counter() - t0:.1f}s (느린 소스: {slow})")
+    return fetched, errors
+
+
 def cmd_fetch(args) -> int:
     cfg = load_config(args.config)
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
 
-    connectors = build_connectors(cfg.fetch)
-    fetched = []
-    errors = []
-    for c in connectors:
-        try:
-            fetched.extend(c.fetch_latest())
-        except Exception as e:
-            errors.append(f"{c.code}: {e}")
-
+    fetched, errors = _fetch_all(cfg)
     upserted = upsert_items(conn, fetched, tz_name=cfg.timezone)
     print(f"수집 {len(fetched)}건, DB 반영 {upserted}건")
     if errors:
@@ -133,14 +164,7 @@ def cmd_preview(args) -> int:
     init_db(conn)
 
     # 최신 수집부터 수행(프리뷰는 항상 최신 상태를 보게)
-    connectors = build_connectors(cfg.fetch)
-    fetched = []
-    errors: list[str] = []
-    for c in connectors:
-        try:
-            fetched.extend(c.fetch_latest())
-        except Exception as e:
-            errors.append(f"{c.code}: {e}")
+    fetched, errors = _fetch_all(cfg)
     upsert_items(conn, fetched, tz_name=cfg.timezone)
     mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
 
@@ -180,6 +204,25 @@ def _enrich(conn, cfg, items) -> None:
         "anthropic": 1.0,
     }
     _llm_sleep = _llm_sleep_by_provider.get(cfg.llm.provider, 1.0)
+
+    # 미래에셋생명 관련성(relevance) 채점기 — shadow 기록 전용(노출 미반영).
+    # 스냅샷 부재·비활성 시 None이 되어 파이프라인은 그대로 진행.
+    scorer = build_scorer(cfg)
+
+    def _save_relevance(item, summary_text) -> None:
+        if scorer is None:
+            return
+        try:
+            body = build_score_text(
+                source=item.source, raw_text=item.raw_text, summary=summary_text
+            )
+            res = scorer.score(title=item.title, body=body, category=item.category)
+            update_item_relevance(
+                conn, item_id=item.id,
+                relevance_score=res.score, relevance_evidence=res.evidence or None,
+            )
+        except Exception as e:
+            print(f"[relevance] 채점 실패 {item.id}: {e}")
 
     for it in items:
         rank = rank_item(title=it.title, raw_text=None, cfg=cfg.ranking)
@@ -238,6 +281,7 @@ def _enrich(conn, cfg, items) -> None:
                 importance_reason=reason,
                 summary=None,
             )
+            _save_relevance(it, it.summary)
             continue
 
         if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
@@ -256,6 +300,7 @@ def _enrich(conn, cfg, items) -> None:
                     importance=importance, importance_reason=reason,
                     summary=summary,
                 )
+                _save_relevance(it, summary)
                 continue
             else:
                 try:
@@ -276,11 +321,24 @@ def _enrich(conn, cfg, items) -> None:
                 except Exception:
                     pass
             spec = SOURCE_SPECS.get(it.source)
+            # 사규 연계 신호를 LLM 판단 참고자료로 주입 (충분한 신호가 있을 때만)
+            company_context = None
+            if scorer is not None:
+                pre = scorer.score(
+                    title=it.title,
+                    body=build_score_text(
+                        source=it.source, raw_text=it.raw_text, summary=it.summary
+                    ),
+                    category=it.category,
+                )
+                if pre.score >= 20 and pre.evidence:
+                    company_context = pre.evidence
             res = summarize_with_llm(
                 llm=cfg.llm,
                 title=it.title,
                 body=body,
                 source_name_ko=(spec.name_ko if spec else it.source),
+                company_context=company_context,
             )
             _llm_call_count += 1
             # LLM 성공(importance 파싱됨)한 경우만 중요도·사유 보정
@@ -300,6 +358,11 @@ def _enrich(conn, cfg, items) -> None:
             importance_reason=reason,
             summary=final_summary,
         )
+        _save_relevance(it, final_summary)
+
+    if _llm_call_count:
+        print(f"[timing] enrich 중 LLM 호출 {_llm_call_count}회 "
+              f"(호출 간 대기 {_llm_sleep:.1f}s)")
 
 
 def cmd_run(args) -> int:
@@ -307,26 +370,11 @@ def cmd_run(args) -> int:
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
 
+    import time as _time
+    _t_stage = _time.perf_counter()
+
     # 1) 수집 (소스별 병렬 수집)
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    def _fetch_one(c):
-        try:
-            return c.code, c.fetch_latest(), None
-        except Exception as e:
-            return c.code, [], str(e)
-
-    connectors = build_connectors(cfg.fetch)
-    fetched = []
-    errors = []
-    with ThreadPoolExecutor(max_workers=5) as ex:
-        futures = {ex.submit(_fetch_one, c): c for c in connectors}
-        for f in as_completed(futures):
-            code, items, err = f.result()
-            fetched.extend(items)
-            if err:
-                errors.append(f"{code}: {err}")
-
+    fetched, errors = _fetch_all(cfg)
     upsert_items(conn, fetched, tz_name=cfg.timezone)
 
     # KoFIU 공고/고시/훈령/예규: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
@@ -339,6 +387,7 @@ def cmd_run(args) -> int:
     # 통제되며, 대법원은 HIGH로 강제 노출하는 정책 유지.
 
     # 2) 발송 대상
+    _t_stage = _time.perf_counter()
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
     )
@@ -346,6 +395,7 @@ def cmd_run(args) -> int:
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
     )
+    print(f"[timing] enrich {_time.perf_counter() - _t_stage:.1f}s ({len(pending)}건)")
 
     if not pending:
         print("발송 대상 없음(신규/변경 없음)")
@@ -385,9 +435,11 @@ def cmd_run(args) -> int:
                 return 1
 
     if cfg.email.enabled:
+        _t_stage = _time.perf_counter()
         send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text)
         mark_sent(conn, [it.id for it in pending], tz_name=cfg.timezone)
         print(f"발송 완료: {len(pending)}건")
+        print(f"[timing] 발송 {_time.perf_counter() - _t_stage:.1f}s")
     else:
         print("email.enabled=false 이므로 발송하지 않았습니다.")
         print(text)
@@ -398,10 +450,12 @@ def cmd_run(args) -> int:
 
     # 4) 콘텐츠 아카이브 (이메일 발송 후 실행, 실패해도 종료코드 영향 없음)
     if cfg.archive.enabled:
+        _t_stage = _time.perf_counter()
         try:
             harvest_content(conn, cfg)
         except Exception as e:
             print(f"[harvest] 오류 (무시): {e}")
+        print(f"[timing] harvest {_time.perf_counter() - _t_stage:.1f}s")
 
     return 0
 
@@ -561,6 +615,51 @@ def cmd_resend_last(args) -> int:
     return 0
 
 
+def cmd_relevance_backfill(args) -> int:
+    """기존 전체 항목에 relevance 점수를 (재)채점합니다. 오프라인·네트워크 불필요.
+
+    스냅샷·lexicon·가중치를 바꾼 뒤 재실행하면 전체가 새 기준으로 갱신됨
+    (Phase 2 백테스트·캘리브레이션용).
+    """
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+
+    scorer = build_scorer(cfg)
+    if scorer is None:
+        print("relevance 비활성(enabled=false) 또는 스냅샷 없음 — 종료")
+        return 1
+
+    rows = conn.execute(
+        "SELECT id, source, category, title, raw_text, summary FROM items"
+    ).fetchall()
+    updates = []
+    dist = {"0": 0, "1-19": 0, "20-39": 0, "40-59": 0, "60+": 0}
+    for r in rows:
+        body = build_score_text(
+            source=r["source"], raw_text=r["raw_text"], summary=r["summary"]
+        )
+        res = scorer.score(title=r["title"], body=body, category=r["category"])
+        updates.append(
+            {"id": r["id"], "score": res.score, "evidence": res.evidence or None}
+        )
+        b = ("0" if res.score == 0 else "1-19" if res.score < 20
+             else "20-39" if res.score < 40 else "40-59" if res.score < 60 else "60+")
+        dist[b] += 1
+    conn.executemany(
+        """
+        UPDATE items
+        SET relevance_score = :score, relevance_evidence = :evidence
+        WHERE id = :id
+        """,
+        updates,
+    )
+    conn.commit()
+    print(f"relevance backfill 완료: {len(updates)}건")
+    print(f"분포: {dist}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="briefing", description="Daily regulatory briefing")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -574,6 +673,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("resend-last", cmd_resend_last),
         ("harvest", cmd_harvest),
         ("search", cmd_search),
+        ("relevance-backfill", cmd_relevance_backfill),
     ]:
         sp = sub.add_parser(name)
         sp.add_argument("--config", required=True, help="config.yaml 경로")

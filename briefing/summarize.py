@@ -53,6 +53,7 @@ def summarize_with_llm(
     title: str,
     body: str,
     source_name_ko: str,
+    company_context: Optional[str] = None,
 ) -> LlmResult:
     """
     외부 LLM 전송 정책이 미정이므로:
@@ -64,11 +65,18 @@ def summarize_with_llm(
     if not api_key:
         return LlmResult(importance=None, summary=None, reason="LLM API 키 없음")
 
+    # 사규-법령 매칭 기반 당사 관련성 신호 (있을 때만 프롬프트에 주입)
+    context_line = (
+        f"\n당사 사규 연계 신호(내부 매칭시스템): {company_context}\n"
+        "위 신호에 해당하는 법령·키워드가 본문에서 실제로 다뤄지면 importance 판단 시 참고하세요."
+        if company_context else ""
+    )
+
     prompt = f"""당신은 미래에셋생명보험 법무·컴플라이언스팀 내부 브리핑 작성자입니다.
 아래 자료를 읽고 JSON으로만 응답하세요. 반드시 순수 JSON만 출력하고 다른 텍스트는 일절 넣지 마세요.
 
 기관: {source_name_ko}
-제목: {title}
+제목: {title}{context_line}
 본문:
 {body[:2500]}
 

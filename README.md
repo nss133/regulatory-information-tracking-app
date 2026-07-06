@@ -94,3 +94,26 @@ docker compose run --rm briefing
 - 기본은 **키워드 기반 중요도**만 사용합니다.
 - 외부 LLM API 전송 정책이 확정되면 `config.yaml`에서 `llm.enabled: true`로 켜고, API 키 환경변수를 설정해 활성화합니다.
 
+## 당사 관련성(relevance) 채점 — ★ 배지
+중요도(high/medium/low)와 별개로, **미래에셋생명 직결도**를 0~100점으로 채점합니다.
+
+- **L1**: comp_matching_auto의 사규-법령 매칭 산출물(감시법령 155개 + 생보협회 규정 50개)을
+  스냅샷(`data/company_relevance_snapshot.json`)으로 받아 제목·요약에서 법령명을 감지.
+  법령별 사규 연계 수가 보조 가중치로 반영됩니다.
+- **L2**: `config.yaml`의 `relevance.term_weights` — 생보 특화 키워드(변액·퇴직연금·K-ICS 등).
+- 입법예고·행정예고는 규범 변경 직접 신호라 관련 흔적이 있으면 +15 가산.
+- 채점 입력은 제목+LLM요약(+대법원·국회 본문)만 사용 — HTML 스크랩 본문은 사이트 메뉴
+  보일러플레이트 오탐 때문에 제외(`briefing/relevance.py`의 `build_score_text` 참조).
+
+**노출**: 등급 체계는 그대로 두고, 각 등급 안에서 relevance 점수순 정렬 +
+50점 이상 항목에 ★ 배지와 근거 주석(매칭 법령·키워드)을 표시합니다.
+임계값: `briefing/render.py`의 `RELEVANCE_STAR_THRESHOLD`.
+
+```bash
+# 스냅샷 재생성 (comp_matching_auto 매칭 갱신 시, 분기 1회 권장 — pandas 필요)
+python3 scripts/export_company_law_snapshot.py
+
+# 가중치·lexicon 변경 후 전체 재채점 (오프라인, 수 초)
+python -m briefing relevance-backfill --config config.yaml
+```
+

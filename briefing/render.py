@@ -34,6 +34,14 @@ class RenderItem:
     is_updated: bool
     attachments: list[RenderAttachment]
     child_items: list["RenderItem"] = field(default_factory=list)
+    relevance_score: int = 0
+    relevance_evidence: str = ""
+    company_flag: bool = False      # ★ 당사 직결 배지 (relevance_score >= 임계)
+
+
+# ★ 배지 임계점수. Phase 2 백테스트 기준: 승격(인용) 이력 7건 중 4건이 50+,
+# 전체 2,100여건 중 50+는 약 2.5%라 HIGH 안에서도 희소성이 유지됨.
+RELEVANCE_STAR_THRESHOLD = 50
 
 
 @dataclass(frozen=True)
@@ -165,6 +173,7 @@ def render_email_html(
             importance = "low"
         text_for_legal = f"{it.title} {it.importance_reason or ''}"
         has_legal = any(k in text_for_legal for k in legal_keywords)
+        rel_score = int(it.relevance_score or 0)
         by_importance.setdefault(importance, []).append(
             RenderItem(
                 source_code=it.source,
@@ -179,6 +188,9 @@ def render_email_html(
                 is_updated=is_updated,
                 attachments=atts,
                 child_items=[],
+                relevance_score=rel_score,
+                relevance_evidence=it.relevance_evidence or "",
+                company_flag=rel_score >= RELEVANCE_STAR_THRESHOLD,
             )
         )
 
@@ -202,9 +214,16 @@ def render_email_html(
         dt = x.published_at or "0000-00-00"
         # 법·규정 키워드가 있으면 같은 그룹 내에서 더 위에 배치
         legal_score = 1 if any(k in x.title or k in x.reason for k in legal_keywords) else 0
-        return (new_score, legal_score, dt, -source_order.get(x.source_code, 999))
+        return (
+            new_score,
+            x.relevance_score,
+            legal_score,
+            dt,
+            -source_order.get(x.source_code, 999),
+        )
 
-    # (1) 신규 여부 (2) 법·규정 키워드 유무 (3) 날짜 내림차순 (4) 소스 우선순위
+    # (1) 신규 여부 (2) 당사 관련성 점수 (3) 법·규정 키워드 유무
+    # (4) 날짜 내림차순 (5) 소스 우선순위
     for k in list(by_importance.keys()):
         by_importance[k] = sorted(by_importance[k], key=_sort_key, reverse=True)
 
@@ -304,6 +323,8 @@ def render_email_html(
                     continue
                 emitted.add(d)
                 members = groups[d]
+                # 묶음 카드의 관련성은 구성원 최고점을 따름(★ 판결이 묻히지 않게)
+                top = max(members, key=lambda m: m.relevance_score)
                 out.append(
                     RenderItem(
                         source_code="scourt",
@@ -318,6 +339,9 @@ def render_email_html(
                         is_updated=False,
                         attachments=[],
                         child_items=list(members),
+                        relevance_score=top.relevance_score,
+                        relevance_evidence=top.relevance_evidence,
+                        company_flag=top.company_flag,
                     )
                 )
             else:

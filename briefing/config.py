@@ -123,6 +123,14 @@ class LlmConfig:
 
 
 @dataclass(frozen=True)
+class RelevanceConfig:
+    """미래에셋생명 관련성(relevance) 채점 설정. shadow 기록용 — 노출 미반영."""
+    enabled: bool
+    snapshot_path: str                  # export_company_law_snapshot.py 산출물
+    term_weights: dict[str, int]        # 생보 특화 키워드 → 가중치
+
+
+@dataclass(frozen=True)
 class ArchiveConfig:
     enabled: bool
     kordoc_cli_path: str
@@ -145,6 +153,7 @@ class AppConfig:
     filter_config: FilterConfig
     llm: LlmConfig
     archive: ArchiveConfig
+    relevance: RelevanceConfig
 
 
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -182,6 +191,7 @@ def load_config(path: str | Path) -> AppConfig:
     filter_raw = raw.get("filter", {})
     llm_raw = _get(raw, "llm")
     archive_raw = raw.get("archive", {})
+    relevance_raw = raw.get("relevance", {})
 
     _default_kordoc = (
         "/Users/nsss/.claude/plugins/marketplaces/"
@@ -245,6 +255,16 @@ def load_config(path: str | Path) -> AppConfig:
             body_harvest_days=int(_get(archive_raw, "body_harvest_days", 30)),
             body_harvest_limit=int(_get(archive_raw, "body_harvest_limit", 100)),
             attachment_harvest_limit=int(_get(archive_raw, "attachment_harvest_limit", 50)),
+        ),
+        relevance=RelevanceConfig(
+            enabled=bool(_get(relevance_raw, "enabled", False)),
+            snapshot_path=str(
+                _get(relevance_raw, "snapshot_path", "data/company_relevance_snapshot.json")
+            ),
+            term_weights={
+                str(k): int(v)
+                for k, v in (relevance_raw.get("term_weights") or {}).items()
+            },
         ),
     )
 
