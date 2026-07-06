@@ -59,16 +59,10 @@
       .tag-kind    { background-color: #f3f0ff; color: #6c3fc7; }
       .tag-new     { background-color: #e6f4ea; color: #1b6b3a; }
       .tag-updated { background-color: #fef3e2; color: #92400e; }
-      .tag-company { background-color: #7c2d12; color: #fff; }
       .item-date   { font-size: 12px; color: #aaa; vertical-align: middle; }
 
-      /* ── 당사 관련성 근거 (★ 항목만 표시) ── */
-      .item-relevance {
-        font-size: 11px;
-        color: #92400e;
-        line-height: 1.5;
-        margin-top: 2px;
-      }
+      /* ── 관련성 표시 (별만, 은은하게) ── */
+      .star { color: #d97706; text-decoration: none; }
 
       /* ── 제목 ── */
       .item-title {
@@ -155,9 +149,6 @@
             <div class="item">
 
               <div class="item-meta">
-                {% if it.company_flag %}
-                  <span class="tag tag-company">★ 당사</span>
-                {% endif %}
                 <span class="tag tag-source">{{ it.source_name_ko }}</span>
                 <span class="tag tag-kind">{{ it.category_label }}</span>
                 {% if not it.is_updated %}
@@ -168,16 +159,12 @@
                 {% endif %}
               </div>
 
-              <a class="item-title" href="{{ it.url }}">{{ it.title }}</a>
+              <a class="item-title" href="{{ it.url }}">{% if it.company_flag %}<span class="star" title="{{ it.relevance_evidence }}">★</span> {% endif %}{{ it.title }}</a>
 
               {% if it.summary %}
                 <div class="item-summary">{{ it.summary }}</div>
               {% elif it.reason %}
                 <div class="item-reason">{{ it.reason }}</div>
-              {% endif %}
-
-              {% if it.company_flag and it.relevance_evidence %}
-                <div class="item-relevance">★ {{ it.relevance_evidence }}</div>
               {% endif %}
 
               {% if it.attachments|length > 0 %}
@@ -194,13 +181,10 @@
                   {% for child in it.child_items %}
                     <li class="child-item">
                       <div class="item-meta">
-                        {% if child.company_flag %}
-                          <span class="tag tag-company">★ 당사</span>
-                        {% endif %}
                         <span class="tag tag-source">{{ child.source_name_ko }}</span>
                         <span class="tag tag-kind">{{ child.category_label }}</span>
                       </div>
-                      <a class="item-title" href="{{ child.url }}">{{ child.title }}</a>
+                      <a class="item-title" href="{{ child.url }}">{% if child.company_flag %}<span class="star" title="{{ child.relevance_evidence }}">★</span> {% endif %}{{ child.title }}</a>
                       {% if child.reason %}<div class="item-reason">{{ child.reason }}</div>{% endif %}
                       {% if child.attachments|length > 0 %}
                         <div class="item-attach">
