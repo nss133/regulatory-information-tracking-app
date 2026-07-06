@@ -49,3 +49,9 @@ load_from_keychain "$LLM_KEY_ENV"
 
 python -m briefing run --config "$CONFIG"
 
+# 법원 판결 인덱스 자동 갱신 (수집 직후 — 신규 판결을 vault 판례(근거) 인덱스에 반영).
+# 실패해도 수집 결과는 유지하도록 non-fatal 처리.
+if [[ -f "build_court_index.py" ]]; then
+  python build_court_index.py || echo "WARN: 법원 판결 인덱스 갱신 실패(무시하고 계속)" >&2
+fi
+
