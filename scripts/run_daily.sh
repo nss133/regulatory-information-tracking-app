@@ -47,6 +47,22 @@ load_from_keychain "GMAIL_APP_PASSWORD"
 # LLM API 키 (config의 llm.api_key_env 기준 — DEEPSEEK_API_KEY, GROQ_API_KEY 등)
 load_from_keychain "$LLM_KEY_ENV"
 
+# iCloud가 data/의 파일을 로컬에서 비워둔(dataless) 상태면 sqlite가 disk I/O error로
+# 죽거나 읽기가 수 분씩 지연됨 — 실행 전에 강제 다운로드하고 완료될 때까지 대기.
+if ls -lO data/ 2>/dev/null | grep -q dataless; then
+  echo "INFO: data/에 iCloud 미다운로드(dataless) 파일 감지 — 다운로드 대기 중..." >&2
+  for f in data/*; do brctl download "$f" 2>/dev/null || true; done
+  for _ in $(seq 1 120); do
+    ls -lO data/ | grep -q dataless || break
+    sleep 10
+  done
+  if ls -lO data/ | grep -q dataless; then
+    echo "ERROR: 20분 내 iCloud 다운로드 미완료. 네트워크 확인 후 재시도하세요." >&2
+    exit 1
+  fi
+  echo "INFO: data/ 다운로드 완료." >&2
+fi
+
 python -m briefing run --config "$CONFIG"
 
 # 법원 판결 인덱스 자동 갱신 (수집 직후 — 신규 판결을 vault 판례(근거) 인덱스에 반영).
