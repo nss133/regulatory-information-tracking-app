@@ -1,0 +1,2668 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    
+    <meta property="og:title" content="법원도서관 - 대한민국 법원" />
+    <meta property="og:description" content="법원도서관 - 대한민국 법원" />
+    <meta name="description" content="법원도서관 - 대한민국 법원" />
+	<meta name="twitter:title" content="법원도서관 - 대한민국 법원" />
+	<meta name="twitter:description" content="법원도서관 - 대한민국 법원" />
+
+    
+    <!-- <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"> -->
+
+    <title>
+    	
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    		
+    			
+		        	
+	        			상세검색 | 법원도서관 > 검색 > 판례판결
+		        	
+		        
+    		
+    	
+    </title>
+    <link rel="shortcut icon" href="/favicon.ico" />
+
+    
+    <link href="/css/vendors/naver/nanumsquare.css" rel="stylesheet" />
+
+    <script src="/js/jquery-latest.min.js"></script>
+    <script src="/js/prefixfree.min.js"></script>
+    <script src="/js/jquery.bxslider.min.js"></script>
+    <script src="/js/include.js?v=1784074452068"></script>
+    <script src="/js/subSlider.js"></script>
+    <script src="/js/polyfill.js"></script>
+    <script src="/js/vue.min.js"></script>
+    
+    <link href="/css/egovframework/jquery.bxslider.css" rel="stylesheet" />
+    
+
+		<link href="/css/egovframework/base.css?v=1784074452068" rel="stylesheet" />
+
+    
+    <link href="/css/egovframework/common.css?v=1784074452068" rel="stylesheet" />
+    <link href="/css/egovframework/subCommon.css?v=1784074452068" rel="stylesheet" />
+    <link href="/css/egovframework/subContent.css?v=1784074452068" rel="stylesheet" />
+    <link href="/css/egovframework/board.css?v=1784074452068" rel="stylesheet" />
+    <link href="/css/egovframework/search.css?v=1784074452068" rel="stylesheet" />
+    <link href="/css/custom/custom.css?v=1784074452068" rel="stylesheet"/>
+
+
+    <script type="text/javascript" src="/js/csm/csm.js"></script>
+    <form id="commonForm" name="commonForm"></form>
+
+    <!-- 21.11.03 MDW S -->
+    <script type="text/javascript" src="/js/jquery.serializeObject.js"></script>
+    <script type="text/javascript" src="/js/downingmoon.utils.js"></script>
+    <!-- 21.11.03 MDW E -->
+    
+    <!-- 21.12.27 datepicker 
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.8.18/themes/base/jquery-ui.css" type="text/css" />  
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>  
+	<script src="http://code.jquery.com/ui/1.8.18/jquery-ui.min.js"></script>
+-->
+<script>console.log('WAS1');</script>
+
+<script src="/js/webVersion.js"></script>
+</head>
+<body>
+	<div class="headerArea subHSTop">
+		<div id="skip_navigation">
+		    <ul>
+		        <li><a href="#start_menu">주메뉴 바로가기</a></li>
+		        <li><a href="#start_contents">본문 바로가기</a></li>
+		    </ul>
+		</div>
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script type="text/javascript">
+$(document).ready(function(){
+	$("div.subNavBox a, #start_menu a").on("click", function(){
+		var menuPath = $(this).attr("href");
+		if(menuPath != "#" && menuPath != "/main" && menuPath != "/" && menuPath.indexOf("javascript") < 0){
+			$.ajax({
+				type: "POST",
+				url: "/cmmn/insertMenuFunctionStatLog",
+				dataType: "json",
+				data: {"menuPath" : menuPath, "gubun" : "1"},
+				async: true,
+				success: function(data){
+ 				},
+				error: function(){
+				}
+			})
+		}
+	});
+})
+
+</script>
+<header>
+	<h1>
+		<a href="/"><img src="/images/egovframework/scourt/logo.png" alt="법원도서관" /></a>
+	</h1>
+	<nav id="start_menu" class="dep1">
+		<ul>
+			<li>
+                    <a href="/search/total/totalDetailSearch">검색</a>
+                    <div class="navBg">
+                        <div class="headerAreaCenterBox">
+                            <div>
+                                <h4>검색</h4>
+                                <p class="custom_area">법원도서관 및 전국법원 도서실의 소장자료, 판례/판결,<br>법원간행물에 대한 검색을 제공합니다.</p>
+                            </div>
+                            <ol>
+                                <li>
+                                    <a class="custom-title" href="/search/total/totalDetailSearch">통합검색</a>
+                                    <ol>
+                                        <li><a href="/search/total/totalDetailSearch">내부자원검색</a></li>
+                                        <li class="siteNew"><a href="https://epass.libsteps.com/scourt_out/index.php/default_search" target="_blank" title="새창 열림">외부자원검색</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/search/lib/libDetailSearch">소장자료</a>
+                                    <ol>
+                                        <li><a href="/search/lib/libDetailSearch">상세검색</a></li>
+                                        <li><a href="/search/lib/new">신착도서</a></li>
+                                        <li><a href="/search/lib/recommend">이달의 추천도서</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/search/judg/judgDetailSearch">판례판결</a>
+                                    <ol>
+                                        <li><a href="/search/judg/judgDetailSearch">상세검색</a></li>
+                                        <li><a href="/search/judg/press/case">판례공보</a></li>
+                                        <li><a href="/search/judg/press/decision">각급법원판결공보</a></li>
+                                        <li><a href="/search/judg/decision/supreme">대법원주요판결</a></li>
+<!--                                         <li><a href="/search/judg/decision/country">전국법원주요판결</a></li> -->
+                                        <li class="siteNew"><a href="https://scourt.go.kr/portal/dcboard/DcNewsListAction.work?gubun=44" target="_blank" title="새창 열림">전국법원주요판결</a></li>
+                                        <li><a href="/search/judg/case/eng">영문판례</a></li>
+                                        <li><a href="/search/judg/case/chi">중문판례</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/search/pub/pubDetailSearch">법원간행물</a>
+                                    <ol>
+                                        <li><a href="/search/pub/pubDetailSearch">상세검색</a></li>
+                                        <li><a href="/search/pub/major">주요간행물</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <a href="/collection/subject/info">컬렉션</a>
+                    <div class="navBg">
+                        <div class="headerAreaCenterBox">
+                            <div>
+                                <h4>컬렉션</h4>
+                                <p>법원도서관이 구축한 법률사전, 세계사법정보,<br> 사법영상자료, 법원역사관 및 국내외법률전자책 등<br> 다양한 유형의 법률정보를 제공합니다.</p>
+                            </div>
+                            <ol>
+                                <li><a class="custom-title" href="/collection/subject/info">주제컬렉션</a></li>
+                                <li>
+                                    <a class="custom-title" href="/collection/dic/thesaurus">법률사전</a>
+                                    <ol>
+                                        <li class="siteNew"><a href="https://gopenlaw.scourt.go.kr" target="_blank" title="새창 열림">법률백과사전</a></li>
+                                        <li><a href="/collection/dic/thesaurus">법률시소러스</a></li>
+                                        <li><a href="/collection/dic/fgn">외국법률용어</a></li>
+                                    </ol>
+                                </li>        
+                                <li>
+                                    <a class="custom-title" href="/collection/world/newsList">세계사법정보</a>
+                                    <ol>
+                                        <li><a href="/collection/world/newsList">해외사법소식</a></li>
+                                        <li><a href="/collection/world/case">해외판례</a></li>
+                                        <!-- <li><a href="/collection/world/site">관련사이트</a></li> -->
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/collection/sch/academy/list">학술정보</a>
+                                    <ol>
+                                        <li><a href="/collection/sch/academy/list">학술대회</a></li>
+                                        <li><a href="/collection/sch/conference/list">학회 및 기관</a></li>
+                                        <li><a href="/collection/sch/thesis/list">발표논제</a></li>
+                                        <li><a href="/collection/sch/notice/list">공지사항</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/collection/ebook/list">전자책·오디오북</a>
+                                    <ol>
+                                    	<li>&nbsp;</li>
+                                    	<li>&nbsp;</li>
+                                        
+                                    </ol>
+                                </li>
+                                
+                                <li>
+                                	<a class="custom-title" href="/collection/asset/info">귀중본·고서</a>
+                    	            <ol>
+                                        <li class="siteNew"><a href="https://jhd.scourt.go.kr" target="_blank" title="새창 열림">조선고등법원판결록</a></li>
+                                        <li class="siteNew"><a href="https://khd.scourt.go.kr" target="_blank" title="새창 열림">구한말민사판결문</a></li>
+                                        <li class="siteNew"><a href="https://e-book.scourt.go.kr/precious" target="_blank" title="새창 열림">귀중본·고서 전자책</a></li>
+                                    </ol>
+                                </li>
+                                <li class="siteNew"><a class="custom-title" href="https://history.scourt.go.kr" target="_blank" title="새창 열림">법원역사관</a></li>
+                                <li class="siteNew"><a class="custom-title" href="https://tv.scourt.go.kr" target="_blank" title="새창 열림">법원TV</a></li>
+                                
+                                <li>
+<!--                                     <a class="custom-title" href="/collection/lx/info">법고을</a> -->
+                                    <a class="custom-title" href="https://lx.scourt.go.kr/" target="_blank" title="새창 열림">법고을</a>
+<!--                                     <a href="https://lx.scourt.go.kr/" target="_blank" title="새창 열림">법고을</a> -->
+                                    <ol>
+                                        <li class="siteNew"><a href="https://lx.scourt.go.kr/" target="_blank" title="새창 열림">법고을</a></li>
+                                        <li><a href="/collection/lx/info">법고을LX자료</a></li>
+<!--                                         <li class="siteNew"><a href="https://gopenlaw.scourt.go.kr" target="_blank" title="새창 열림">법률백과사전</a></li> -->
+                                    </ol>
+                                </li>    
+                            </ol>
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <a  href="/openspace/apply/hope/info">이용자마당</a>
+                    <div class="navBg">
+                        <div class="headerAreaCenterBox">
+                            <div>
+                                <h4>이용자마당</h4>
+                                <p>법마루 견학, 행사·강좌, 희망도서 신청을<br> 이용할 수 있으며, 법원도서관<br> 공지사항, 일정, 설문조사 등을 안내합니다.</p>
+                            </div>
+                            <ol>
+                                <li>
+                                    <a class="custom-title" href="/openspace/apply/hope/info">신청·예약</a>
+                                    <ol>
+                                        <li><a href="/openspace/apply/visit/info">도서관견학</a></li>
+                                        <li><a href="/openspace/apply/event/list">행사·강좌신청</a></li>
+                                        <li><a href="/openspace/apply/seat/digital">좌석예약</a></li>
+                                        <li><a href="/openspace/apply/hope/info">희망도서신청</a></li>
+                                        <li><a href="/openspace/apply/pass/info">이용증발급</a></li>
+										
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/openspace/parti/notice/list">소통·참여</a>
+                                    <ol>
+                                        <li><a href="/openspace/parti/notice/list">공지사항</a></li>
+                                        <li><a href="/openspace/parti/schedule/list">도서관일정</a></li>
+                                        <li><a href="/openspace/parti/faq/list">자주하는 질문</a></li>
+                                        <li><a href="/openspace/parti/qna/list">도서관에 바란다</a></li>
+                                        <li><a href="/openspace/parti/missing/list">분실물찾기</a></li>
+                                        <li><a href="/openspace/parti/donate/info">자료기증</a></li>
+                                        <li><a href="/openspace/parti/survey/list">설문조사</a></li>
+<!--                                         <li class="siteNew"><a href="https://open.scourt.go.kr/main/Main.work?applink=1" target="_blank" title="새창 열림">정보공개</a></li> -->
+                                        <li class="siteNew"><a href="https://portal.scourt.go.kr/pgp/index.on?m=PGP351M01&l=N&c=100" target="_blank" title="새창 열림">정보공개</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <a href="/introduction/intro/greeting">도서관소개</a>
+                    <div class="navBg">
+                        <div class="headerAreaCenterBox">
+                            <div>
+                                <h4>도서관소개</h4>
+                                <p>법원도서관 조직, 시설/자료 현황, 이용방법,<br> 규정 등을 안내합니다.</p>
+                            </div>
+                            <ol>
+                                <li>
+                                    <a class="custom-title" href="/introduction/intro/greeting">소개</a>
+                                    <ol>
+                                        <li><a href="/introduction/intro/greeting">인사말</a></li>
+                                        <li><a href="/introduction/intro/history">연혁</a></li>
+                                        <li><a href="/introduction/intro/org">조직</a></li>
+                                        <li><a href="/introduction/intro/state/facility">현황</a></li>
+                                        <li><a href="/introduction/intro/logo">로고 및 엠블럼</a></li>
+                                        <!-- <li><a href="/introduction/intro/logo">로고</a></li> -->
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/introduction/use/way">이용안내</a>
+                                    <ol>
+                                        <li><a href="/introduction/use/way">이용방법</a></li>
+                                        <li class="siteNew"><a href="/view/index.html?applink=1" target="_blank" title="새창 열림">도서관둘러보기(VR)</a></li>
+                                        <li><a href="/introduction/use/amenity">편의시설</a></li>
+                                        <li><a href="/introduction/use/road">찾아오시는길</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a class="custom-title" href="/introduction/rule/policy">규정 지침</a>
+                                    <ol>
+                                        <li><a href="/introduction/rule/policy">법원도서관규정</a></li>
+                                        <li><a href="/introduction/rule/private">개인정보처리방침</a></li>
+                                        <li><a href="/introduction/rule/email">이메일무단수집거부</a></li>
+                                        <li><a href="/introduction/rule/video">영상정보처리기기<br/>운영·관리방침</a></li>
+                                        <li><a href="/introduction/rule/web">웹접근성</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </nav>
+        <div class="sideNav">
+            <ul>
+                <li>
+	            	
+	            	
+	            		
+	            		<a href="/user/login">로그인</a>
+	            	
+	            </li>
+			
+			
+				<li>
+					<a href="/myLibrary/loan/list">나의공간</a>
+			
+                    <div class="myAreaBox">
+                        <div>
+                            <section>
+                                <h4>내서재</h4>
+                                <ul>
+                                    <li><a href="/myLibrary/loan/list">대출현황</a></li>
+                                    <li><a href="/myLibrary/resv/list">예약현황</a></li>
+                                    <li><a href="/myLibrary/hope/list">희망도서</a></li>
+                                    <li><a href="/myLibrary/event/list">행사,강좌</a></li>
+                                    
+                                    <li><a href="/myLibrary/basket/list">바구니</a></li>
+                                    <li><a href="/myLibrary/history/list">대출이력</a></li>
+                                </ul>
+                            </section>
+                            <section>
+                                <h4>내정보관리</h4>
+                                <ul>
+<!--                                     <li><a href="/user/modify/general/form" target="_blank" title="새창 열림">회원정보수정</a></li> -->
+                                    <li><a href="/user/modify/certify" target="_blank" title="새창 열림">회원정보수정</a></li>
+                                    <li><a href="/user/privacy/intro" target="_blank" title="새창 열림">개인정보재동의</a></li>
+                                    
+                               		
+                                </ul>
+                            </section>
+                            <img src="/images/egovframework/scourt/navconXb.png" class="myAreaCBtn" alt="나의공간 메뉴끄기" tabindex="0" role="button" />
+                        </div>
+                    </div>
+                </li>
+                <li><a href="/" title="한국어(현재 선택됨)" aria-current="true">KOR</a></li>
+                <li><a href="/eng/main" target="_blank" title="영어 버전 새창 열림">ENG</a></li>
+                <li><a href="/chi/main"  target="_blank" title="중국어 버전 새창 열림" class="chinese">中文</a></li>
+            </ul>
+          
+            <a href="#" onclick="zoomInOut('plus');return false;" title="확대하기" class="zoomIO">+</a>
+            <a href="#" onclick="zoomInOut('minus');return false;" title="축소하기" class="zoomIO">-</a>
+            <a href="#lawPop" class="lawOfflineBtn">
+                <img src="/images/egovframework/scourt/lawOffline.png" alt="법마루" />
+            </a> 
+            <div class="lawOfflinerBox" id="lawPop">
+                <div class="lawOfflinerCon">
+                    <div>
+                        <ul class="floatClear">
+					        <li><a href="/introduction/use/way"><img src="/images/egovframework/scourt/maru/marucon01.png" alt="" />이용방법</a></li>
+					        <li><a href="/search/lib/libDetailSearch?search_law_code=A0I2000"><img src="/images/egovframework/scourt/maru/marucon02.png" alt="" />법마루자료검색</a></li>
+					        <li><a href="/openspace/apply/seat/digital"><img src="/images/egovframework/scourt/maru/marucon03.png" alt="좌석예약 아이콘"/>좌석예약</a></li>
+					        <li><a href="/openspace/apply/event/list"><img src="/images/egovframework/scourt/maru/marucon04.png" alt="" />행사·강좌신청</a></li>
+					        <li><a href="/view/index.html" target="_blank" title="새창 열림"><img src="/images/egovframework/scourt/maru/marucon05.png" alt="" />도서관둘러보기</a></li>
+					        <li><a href="/introduction/intro/state/facility"><img src="/images/egovframework/scourt/maru/marucon06.png" alt="" />시설현황</a></li>
+					        <li><a href="/introduction/use/road"><img src="/images/egovframework/scourt/maru/marucon07.png" alt="" />찾아오시는길</a></li>
+					        <li><a href="/openspace/parti/qna/list"><img src="/images/egovframework/scourt/maru/marucon08.png" alt="" />도서관에바란다</a></li>
+                        </ul>
+                    </div>
+                    <a href="#close"><img src="/images/egovframework/scourt/navconX.png" alt="닫기" /></a>
+                </div>
+            </div>
+            <img class="lnbBtn" src="/images/egovframework/scourt/navcon.png" alt="사이트맵 모바일네비" />
+            <div>
+                <div class="lnb-bg"></div>
+                <div class="lnb">
+                    <div class="lnbSubList">
+                        <b>전체메뉴</b>
+                        <div class="mobileNavList">
+                            <ul>
+                                <li>
+	                            	
+					            	
+					            		
+					            		<a href="/user/login">로그인</a>
+					            	
+	                            </li>
+                                <li><a href="/myLibrary/loan/list">내서재</a></li>
+<!--                                 <li><a href="/user/modify/general/form">회원정보수정</a></li> -->
+                                <li><a href="/user/modify/certify">회원정보수정</a></li>
+                                <li><a href="/" title="한국어(현재 선택됨)" aria-current="true">KOR</a></li>
+                                <li><a href="eng/main" target="_blank" title="영어 버전 새창 열림">ENG</a></li>
+                                <li><a href="/chi/main" target="_blank" title="중국어 버전 새창 열림" class="chinese">中文</a></li>
+                            </ul>
+                        </div> 
+                        <span>
+                            <img src="/images/egovframework/scourt/navconXb.png" alt="카테고리메뉴끄기" />
+                        </span>
+                    </div>
+                    <ul class="lnbList">
+                        <li>
+                            <a href="#">검색</a>
+                            <ol>
+                                <li>
+                                    <a href="/search/total/totalDetailSearch">통합검색</a>
+                                    <ol>
+                                        <li><a href="/search/total/totalDetailSearch">내부자원검색</a></li>
+                                        <li class="siteNew"><a href="https://epass.libsteps.com/scourt_out/index.php/default_search" target="_blank" title="새창 열림">외부자원검색</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/search/lib/libDetailSearch">소장자료</a>
+                                    <ol>
+                                        <li><a href="/search/lib/libDetailSearch">상세검색</a></li>
+                                        <li><a href="/search/lib/new">신착도서</a></li>
+                                        <li><a href="/search/lib/recommend">이달의 추천도서</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/search/judg/judgDetailSearch">판례판결</a>
+                                    <ol>
+                                        <li><a href="/search/judg/judgDetailSearch">상세검색</a></li>
+                                        <li><a href="/search/judg/press/case">판례공보</a></li>
+                                        <li><a href="/search/judg/press/decision">각급법원판결공보</a></li>
+                                        <li><a href="/search/judg/decision/supreme">대법원주요판결</a></li>
+<!--                                         <li><a href="/search/judg/decision/country">전국법원주요판결</a></li> -->
+                                        <li class="siteNew"><a href="https://scourt.go.kr/portal/dcboard/DcNewsListAction.work?gubun=44" target="_blank" title="새창 열림">전국법원주요판결</a></li>
+                                        <li><a href="/search/judg/case/eng">영문판례</a></li>
+                                        <li><a href="/search/judg/case/chi">중문판례</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/search/pub/pubDetailSearch">법원간행물</a>
+                                    <ol>
+                                        <li><a href="/search/pub/pubDetailSearch">상세검색</a></li>
+                                        <li><a href="/search/pub/major">주요간행물</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                        <li>
+                            <a href="#">컬렉션</a>
+                            <ol>
+                                <li><a href="/collection/subject/info">주제컬렉션</a></li>
+                                <li>
+                                    <a href="/collection/dic/thesaurus">법률사전</a>
+                                    <ol>
+         	                            <li class="siteNew"><a href="https://gopenlaw.scourt.go.kr?applink=1" target="_blank" title="새창 열림">법률백과사전</a></li>
+                                        <li><a href="/collection/dic/thesaurus">법률시소러스</a></li>
+                                        <li><a href="/collection/dic/fgn">외국법률용어</a></li>
+                                    </ol>
+                                </li>        
+                                <li>
+                                    <a href="/collection/world/newsList">세계사법정보</a>
+                                    <ol>
+                                        <li><a href="/collection/world/newsList">해외사법소식</a></li>
+                                        <li><a href="/collection/world/case">해외판례</a></li>
+                                        <!-- <li><a href="/collection/world/site">관련사이트</a></li> -->
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/collection/sch/academy/list">학술정보</a>
+                                    <ol>
+                                        <li><a href="/collection/sch/academy/list">학술대회</a></li>
+                                        <li><a href="/collection/sch/conference/list">학회 및 기관</a></li>
+                                        <li><a href="/collection/sch/thesis/list">발표논제</a></li>
+                                        <li><a href="/collection/sch/notice/list">공지사항</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/collection/ebook/list">전자책·오디오북</a>
+                                </li>
+                                
+                                
+                                <li>
+                                	<a href="/collection/asset/info">귀중본·고서</a>
+                                	<ol>
+                                		<li class="siteNew"><a href="https://jhd.scourt.go.kr" target="_blank" title="새창 열림">조선고등법원판결록</a></li>
+                                        <li class="siteNew"><a href="https://khd.scourt.go.kr" target="_blank" title="새창 열림">구한말민사판결문</a></li>
+                                        <li class="siteNew"><a href="https://e-book.scourt.go.kr/precious" target="_blank" title="새창 열림">귀중본·고서 전자책</a></li>
+                                	</ol>
+                                </li>
+                                
+                                <li class="siteNew"><a href="https://history.scourt.go.kr?applink=1" target="_blank" title="새창 열림">법원역사관</a></li>
+                                <li class="siteNew"><a href="https://tv.scourt.go.kr?applink=1" target="_blank" title="새창 열림">법원TV</a></li>
+                                
+                                <li>
+                                	<a href="https://lx.scourt.go.kr/" target="_blank" title="새창 열림">법고을</a>
+                                    <ol>
+                                        <li class="siteNew"><a href="https://lx.scourt.go.kr/" target="_blank" title="새창 열림">법고을</a></li>
+                                        <li><a href="/collection/lx/info">법고을LX자료</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                        <li>
+                            <a href="#">이용자마당</a>
+                            <ol>
+                                <li>
+                                    <a href="/openspace/apply/hope/info">신청·예약</a>
+                                    <ol>
+                                        <li><a href="/openspace/apply/visit/info">도서관견학</a></li>
+                                        <li><a href="/openspace/apply/event/list">행사·강좌신청</a></li>
+                                        <li><a href="/openspace/apply/seat/digital">좌석예약</a></li>
+                                        <li><a href="/openspace/apply/hope/info">희망도서신청</a></li>
+                                        <li><a href="/openspace/apply/pass/info">이용증발급</a></li>
+                                        
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/openspace/parti/notice/list">소통·참여</a>
+                                    <ol>
+                                        <li><a href="/openspace/parti/notice/list">공지사항</a></li>
+                                        <li><a href="/openspace/parti/schedule/list">도서관일정</a></li>
+                                        <li><a href="/openspace/parti/faq/list">자주하는 질문</a></li>
+                                        <li><a href="/openspace/parti/qna/list">도서관에 바란다</a></li>
+                                        <li><a href="/openspace/parti/missing/list">분실물찾기</a></li>
+                                        <li><a href="/openspace/parti/donate/info">자료기증</a></li>
+                                        <li><a href="/openspace/parti/survey/list">설문조사</a></li>
+<!--                                         <li class="siteNew"><a href="https://open.scourt.go.kr/main/Main.work" target="_blank" title="새창 열림">정보공개</a></li> -->
+                                        <li class="siteNew"><a href="https://portal.scourt.go.kr/pgp/index.on?m=PGP351M01&l=N&c=100" target="_blank" title="새창 열림">정보공개</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                        <li>
+                            <a href="#">도서관소개</a>
+                            <ol>
+                                <li>
+                                    <a href="/introduction/intro/greeting">소개</a>
+                                    <ol>
+                                        <li><a href="/introduction/intro/greeting">인사말</a></li>
+                                        <li><a href="/introduction/intro/history">연혁</a></li>
+                                        <li><a href="/introduction/intro/org">조직</a></li>
+                                        <li><a href="/introduction/intro/state/facility">현황</a></li>
+                                        <li><a href="/introduction/intro/logo">로고 및 엠블럼</a></li>
+                                        <!-- <li><a href="/introduction/intro/logo">로고</a></li> -->
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/introduction/use/way">이용안내</a>
+                                    <ol>
+                                        <li><a href="/introduction/use/way">이용방법</a></li>
+                                        <li class="siteNew"><a href="/view/index.html" target="_blank" title="새창 열림">도서관둘러보기(VR)</a></li>
+                                        <li><a href="/introduction/use/amenity">편의시설</a></li>
+                                        <li><a href="/introduction/use/road">찾아오시는길</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/introduction/rule/policy">규정 지침</a>
+                                    <ol>
+                                        <li><a href="/introduction/rule/policy">법원도서관규정</a></li>
+                                        <li><a href="/introduction/rule/private">개인정보처리방침</a></li>
+                                        <li><a href="/introduction/rule/email">이메일무단수집거부</a></li>
+                                        <li><a href="/introduction/rule/video">영상정보처리기기 운영·관리방침</a></li>
+                                        <li><a href="/introduction/rule/web">웹접근성</a></li>
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                        <li>
+                            <a href="#">나의공간</a>
+                            <ol>
+                                <li>
+                                    <a href="/myLibrary/loan/list">내서재</a>
+                                    <ol>
+                                        <li><a href="/myLibrary/loan/list">대출현황</a></li>
+	                                    <li><a href="/myLibrary/resv/list">예약현황</a></li>
+	                                    <li><a href="/myLibrary/hope/list">희망도서</a></li>
+	                                    <li><a href="/myLibrary/event/list">행사,강좌</a></li>
+	                                    
+	                                    <li><a href="/myLibrary/basket/list">바구니</a></li>
+                                    </ol>
+                                </li>
+                                <li>
+                                    <a href="/user/modify/general/form">내정보관리</a>
+                                    <ol>
+                                        <li><a href="/user/modify/certify">회원정보수정</a></li>
+	                                    <li><a href="/user/privacy/intro">개인정보재동의</a></li>
+	                                    
+	                               		
+                                    </ol>
+                                </li>
+                            </ol>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </header>
+    <style>
+    	@media (max-width: 450px) {
+    		.lnb .lnbSubList .mobileNavList > ul {
+				width: 320px;
+				margin: auto;
+			}
+    	}
+    </style>
+    <script type="text/javascript">
+	    var zoomRate = 20;
+	    var curRate = 100;
+	    var minRate = 75;
+	    var maxRate = 200;
+	
+	    
+	    function initZoom() {
+	        if (getCookie("zoomName") != null && getCookie("zoomName") != "") {
+	            curRate = getCookie("zoomName");
+	            if (!((curRate >= minRate) & (curRate <= maxRate))) {
+	                curRate = 100;
+	            }
+	
+	            setCookie("zoomName", curRate, 1);
+	            document.body.style.zoom = curRate + '%';
+	        }
+	        else {
+	            document.body.style.zoom = '100%';
+	            curRate = 100;
+	        }
+	    }
+	
+	    function zoomInOut(value) {
+	        var browserEl = navigator.userAgent.toLowerCase();
+	        if (browserEl.indexOf('firefox') != -1) { alert("익스플로러전용기능입니다. 보기메뉴 - 크기조정 - 확대/축소를 이용하세요."); }
+	        else if (browserEl.indexOf('opera') != -1) { alert("익스플로러전용기능입니다. 보기메뉴 - zoom을 이용하세요."); }
+	        if (((value == "plus") && (curRate >= maxRate))) {
+	            alert("더이상 확대되지 않습니다.");
+	            return;
+	        }
+	        if (((value == "minus") && (curRate <= minRate))) {
+	            alert("더이상 축소되지 않습니다.");
+	            return;
+	        }
+	        if (value == "plus") {
+	            curRate = parseInt(curRate) + parseInt(zoomRate);
+	            if(curRate >= 140){
+	            	$('#search_text1').css('display','none');
+	            	$('#totalLeftSearch').css('display','none');
+	            	
+	            }
+
+	        }
+	        else if (value == "minus") {
+	            curRate = parseInt(curRate) - parseInt(zoomRate);
+	            if(100 <= curRate && curRate < 140){
+	            	$('#search_text1').css('display','block');
+	            	$('#totalLeftSearch').css('display','block');
+	            	
+	            }
+	            
+	        }
+	        else {
+	        	
+	            curRate = 100
+	        }
+	        document.body.style.zoom = curRate + '%';
+	    }
+	    
+	    $(document).ready(function(){
+	    	$('a#test').click(function(){
+	    		alert('서비스 준비 중입니다.');	
+	    		e.preventDefault();
+	    		$(this).off();
+	    	})
+	    	
+	    	
+	    })
+	    
+	function goKissSite(){
+		$.ajax({
+	        url : '/kiss/getKissEncription.do',
+	        data : {},
+	        type:"POST",
+	        async:false,
+	        success:function(res){
+	       	 var result = res.result;
+	       	 
+	       	 if(result == "OK"){
+	       		 var c_code = res.cCode;
+	       		 var code   = res.code;
+	       		 
+	       		var url = "http://kiss.kstudy.com/?c_code=" + c_code + "&code=" + code;
+	       	    
+	       		// window.open(url, "newWindow");
+	       		window.open(url, "_blank");
+	       	 }
+	       	 else if(result == "NL"){
+	       		 alert("로그인 후 이용가능합니다.");
+	       	 }
+	       	 else if(result == "CN"){
+	       		 alert("저작권 회원만 이용가능합니다.");
+	       	 }
+	       	 else {
+	       		 alert("오류가 발생하였습니다.\n관리자에게 문의하시기 바랍니다.");
+	       	 }
+	        },error:function(res){
+	            alert("오류 발생.\n관리자에게 문의해주세요.");
+	        }
+	    });
+	}
+	</script>
+	</div>
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	<div id="subTop" class="gradationBg1"> <!-- id="subTop" : 지우면 안됩니다. 지우면 퀵메뉴 기능 안됩니다. -->
+        <div class="subSearchArea">
+            <form id="totalLeftSearchFrm" class="subSearchBox">
+            	<!--재검색일때만 생김-->
+                <div class="searchInR"><input id="searchInS" name="reSearch" type="checkbox" value="1" /> <label for="searchInS">결과 내 검색</label></div>
+                <label for="search_text1" class="hide">통합검색</label>
+                <input type="text" id="search_text1" name="search_text1" title="통합검색 입력" placeholder="통합검색" onkeypress="searchEnter();" />
+                <a href="javascript:void(0);" id="totalLeftSearch" class="custom-leftSearch" onclick="return false;">검색</a>
+                <a href="/search/total/totalDetailSearch">상세검색</a>
+                <b class="languageBtn" tabindex="0" role="button"><img src="/images/egovframework/scourt/sub/world.png" alt="다국어입력"/>다국어입력</b>
+                <div id="multilingual" class="languageBox">
+                	
+                    <h4>다국어 입력</h4>
+                    <div>
+                        <ul class="language_nav">
+                            <li v-for="(lang,i) in multilinguals" :class=" i === selectedLang ? 'active' : ''">
+                            	<a href="#language01"
+                            		:title="lang.title"
+                            		:aria-current="i === selectedLang ? 'true' :'false'"
+                            		@click="clickLang(i)">{{lang.title}}</a>
+                            </li>
+                        </ul>
+                        <div id="language01" class="language_tab">
+                            <div>
+                                <ul class="languageList">
+                                    <li v-for="(word,i) in multilinguals[selectedLang].words"><a href="#" style="cursor:pointer;" @click="inputKeyword(word)">{{word}}</a></li>
+                                    
+                                </ul>
+                            </div>
+                        </div>
+                        
+                    </div>
+                    <img src="/images/egovframework/scourt/navconXb.png" alt="닫기" class="languageBoxCBtn"  tabindex="0" role="button" />
+                </div>
+                
+                <input type="hidden" name="searchSelect" value="search_title" title="검색구분"/>
+                <input type="hidden" name="display" value="10" title="페이지 갯수"/>
+                <input type="hidden" name="orderby" value="DESC" title="검색 순서"/>
+                <input type="hidden" name="search_mode" value="normal" title="검색모드" />
+                <input type="hidden" name="category" value="1" title="구분" />
+                <input type="hidden" name="detailUrl" value="" title="detailUrl"/>
+                <input type="hidden" name="previousKeyword" title="previousKeyword" value=""/>
+            </form>
+        </div> 
+        <div class="subNavBox">
+            <ul class="subNav maxBox"> 
+                <li><a href="/"><img src="/images/egovframework/scourt/sub/subHome.png" alt="home" /></a></li>
+                
+                <li>
+                    <a href="#" title="하위메뉴 열기">검색</a>
+                    <ol class="subNavSlide">
+                    
+                    	<li class="activeList "><a href="/search/total/totalDetailSearch" >검색</a></li>
+                    
+                    	<li class=" "><a href="/collection/subject/info" >컬렉션</a></li>
+                    
+                    	<li class=" "><a href="/openspace/apply/hope/info" >이용자마당</a></li>
+                    
+                    	<li class=" "><a href="/introduction/intro/greeting" >도서관소개</a></li>
+                    
+                    	<li class=" "><a href="/myLibrary/loan/list" >내서재</a></li>
+                    
+                    </ol>
+                </li>
+                
+                
+                <li>
+                    <a href="#" title="하위메뉴 열기">판례판결</a>
+                    <ol class="subNavSlide">
+                    
+                    	<li class=" "><a href="/search/total/totalDetailSearch" >통합검색</a></li>
+                    
+                    	<li class=" "><a href="/search/lib/libDetailSearch" >소장자료</a></li>
+                    
+                    	<li class="activeList "><a href="/search/judg/judgDetailSearch" >판례판결</a></li>
+                    
+                    	<li class=" "><a href="/search/pub/pubDetailSearch" >법원간행물</a></li>
+                    
+                    </ol>
+                </li>
+                
+                
+                <li class="printBtn">
+                    <!-- <a href="#" onclick="return window.print();"><img src="/images/egovframework/scourt/sub/subP.png" alt="프린트" /></a> -->
+                    <a href="#" onclick="windowPrint();"><img src="/images/egovframework/scourt/sub/subP.png" alt="프린트" /></a>
+                </li>
+                <li class="shareBtn">
+                    <a href="#"><img src="/images/egovframework/scourt/sub/subSns.png" alt="공유하기" /></a>
+                    <ol class="subNavSlide">
+                        <li><a href="javascript:;" onclick="clickFb()" title="새창 열림"><img src="/images/egovframework/scourt/sub/subSnsF.png" alt="페이스북공유하기" /></a></li>
+                        <li><a href="javascript:;" onclick="clickTw()" title="새창 열림"><img src="/images/egovframework/scourt/sub/subSnsT.png" alt="트위터공유하기" /></a></li>
+                        <li><a href="javascript:;" onclick="clickUrl(this)">URL공유</a></li>
+                    </ol>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <form name="totalSearchFrm" id="totalSearchFrm" class="subSearchBox">
+     <input type="hidden" name="pageNo" 			title="pageNo" 				value=""/>
+	 <input type="hidden" name="search_mode" 		title="search_mode" 		value=""/>
+	 <input type="hidden" name="detailUrl" 			title="detailUrl" 			value=""/>
+	 <input type="hidden" name="searchSelect" 		title="searchSelect" 		value=""/>
+	 <input type="hidden" name="searchSelect2" 		title="searchSelect2" 		value=""/>
+	 <input type="hidden" name="searchSelect3" 		title="searchSelect3" 		value=""/>
+	 <input type="hidden" name="search_text1" 		title="search_text1" 		value=""/>
+	 <input type="hidden" name="search_text2" 		title="search_text2" 		value=""/>
+	 <input type="hidden" name="search_text3" 		title="search_text3" 		value=""/>
+	 <input type="hidden" name="category" 			title="category" 			value="1"/>
+	 <input type="hidden" name="beginDay" 			title="beginDay" 			value=""/>
+	 <input type="hidden" name="endDay" 			title="endDay" 				value=""/>
+	 <input type="hidden" name="display" 			title="display" 			value=""/>
+	 <input type="hidden" name="orderby_item" 		title="orderby_item" 		value=""/>
+	 <input type="hidden" name="orderby" 			title="orderby" 			value=""/>
+	 <input type="hidden" name="search_category" 	title="search_category" 	value=""/>
+	 <input type="hidden" name="search_category2" 	title="search_category2" 	value=""/>
+	 <input type="hidden" name="search_kind" 		title="search_kind" 		value=""/>
+	 <input type="hidden" name="kind" 				title="kind" 				value=""/>
+	 <input type="hidden" name="totalChk" 			title="totalChk" 			value=""/>
+	 <input type="hidden" name="search_law_code" 	title="search_law_code" 	value=""/>
+	 <input type="hidden" name="search_law_desc" 	title="search_law_desc" 	value=""/>
+	 <input type="hidden" name="previousKeyword" 	title="previousKeyword" 	value=""/>
+	 <input type="hidden" name="searchTotalCount" title="searchTotalCount" value=""/>
+	 <input type="hidden" name="libCount" title="libCount" value=""/>
+	 </form>
+	 
+	 
+	 
+	 
+	 
+	 <script async defer crossorigin="anonymous" src="https://connect.facebook.net/ko_KR/sdk.js#xfbml=1&version=v12.0" nonce="M00wttQo"></script>
+    <script type="text/javascript"> 
+	    $(document).ready(function(){
+			if($(location).attr('pathname') == "/search/total/result"){
+				$("#search_text1").attr("placeholder", "통합검색");
+			}else if($(location).attr('pathname') == "/search/lib/result"){
+				$("#search_text1").attr("placeholder", "소장자료검색");
+			}else if($(location).attr('pathname') == "/search/lib/libDetai"){
+				$("#search_text1").attr("placeholder", "소장자료검색");
+			}else if($(location).attr('pathname') == "/search/judg/result"){
+				$("#search_text1").attr("placeholder", "판례/판결검색");
+			}else if($(location).attr('pathname') == "/search/pub/result"){
+				$("#search_text1").attr("placeholder", "법원간행물검색");
+			}else if($(location).attr('pathname') == "/search/collection/result"){
+				$("#search_text1").attr("placeholder", "컬렉션검색");
+			}else if($(location).attr('pathname') == "/search/site/result"){
+				$("#search_text1").attr("placeholder", "사이트검색");
+			}else if($(location).attr('pathname') == "/search/judg/press/case"){
+				$("#search_text1").attr("placeholder", "판례공보검색");
+			}else if($(location).attr('pathname') == "/search/judg/press/decision"){
+				$("#search_text1").attr("placeholder", "각급법원판결공보검색");
+			}else if($(location).attr('pathname') == "/search/judg/decision/supreme"){
+				$("#search_text1").attr("placeholder", "대법원주요판결검색");
+			}else if($(location).attr('pathname') == "/search/judg/decision/country"){
+				$("#search_text1").attr("placeholder", "전국법원주요판결검색");
+			}else if($(location).attr('pathname') == "/search/judg/case/eng"){
+				$("#search_text1").attr("placeholder", "영문판례검색");
+			}else if($(location).attr('pathname') == "/search/judg/case/chi"){
+				$("#search_text1").attr("placeholder", "중문판례검색");
+			}else{
+				$("#search_text1").attr("placeholder", "통합검색");
+			}
+		});
+	    
+	    $(document).on("click", "#totalLeftSearch", totalLeftSearchCallback);
+	    
+	    function matchUrl(url) {
+	    	var rtnUrl = "";
+	    	// URL 검증 및 필요한 부분 추출
+	        var match = url.match(/^(https?:\/\/[^\/?#]+)(\/[^\?#]*)?(\?[^#]*)?(#.*)?$/);
+	        if (match) {
+	            var baseUrl	= match[1];   // 프로토콜 및 도메인
+	            var path 	= match[2];   // 경로
+	            var query 	= match[3];   // 쿼리 매개변수
+	            
+	            rtnUrl = baseUrl + path + query;
+	        }
+	        return rtnUrl;
+	    }
+	    
+	    function clickFb(){
+	    	insertFunctionLog("FSE01");
+	    	
+	    	var facebookShareUrl;
+	    	var facebookDomain = "https://www.facebook.com";
+	    	
+	    	// 현재 페이지 URL을 가져옵니다.
+	        var currentUrl 		= window.document.location.href;
+	    	var currnetDomain	= window.location.origin;
+	    	
+	        if(currentUrl != null) {
+	            // 필요한 부분만 사용하여 Facebook 공유 URL 생성
+	            facebookShareUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(currentUrl);
+		    	
+		    	if(!currentUrl.startsWith(currnetDomain) || !facebookShareUrl.startsWith(facebookDomain)) {
+		    		alert("안전하지 않은 리다이렉션을 감지했습니다.");
+		    		return;
+		    	}
+	            // 새 창으로 열기
+// 	            window.open(facebookShareUrl, "_blank", "width=600,height=400");
+	            window.open(facebookShareUrl, "_blank", "noopener,noreferrer,width=600,height=400");
+	        }
+            
+	    }
+	    
+	    function clickTw(){
+	    	insertFunctionLog("FSE02");
+	    	// 현재 페이지 URL을 가져옵니다.
+	        var currentUrl = window.document.location.href;
+	        var url = matchUrl(currentUrl);
+	        
+	    	var sendText = "법원도서관";
+	        var twitterShareUrl = "https://twitter.com/intent/tweet?text=" + sendText + "&url=" + encodeURIComponent(url);
+	        
+	    	window.open(twitterShareUrl);
+	    }
+	    
+	    function clickUrl(t){
+	    	insertFunctionLog("FSE03");
+	    	var url = '';
+	    	var textarea = document.createElement("textarea");
+	    	document.body.appendChild(textarea);
+	    	url = window.document.location.href;
+	    	textarea.value = url;
+	    	textarea.select();
+	    	document.execCommand("copy");
+	    	document.body.removeChild(textarea);
+	    	alert("URL이 복사되었습니다.");
+	    	t.focus();
+	    }
+	    
+	    function windowPrint(){
+	    	insertFunctionLog("FPT01");
+	    	window.print();
+	    }
+	    
+	    function insertFunctionLog(code){
+	    	$.ajax({
+				type: "POST",
+				url: "/cmmn/insertMenuFunctionStatLog",
+				dataType: "json",
+				data: {"code" : code, "gubun" : "2"},
+				async: true,
+				success: function(data){
+				},
+				error: function(){
+				}
+			})
+	    }
+	    
+	    function totalLeftSearchCallback() {
+	    	if($("input[name=detailUrl]").val() == ""){
+	    		$("#totalLeftSearchFrm").attr('action','/search/total/result').submit();
+	    	}
+	    	else if($("input[name=detailUrl]").val() == "booksearch?"){
+	    		$("#search_text1").attr("placeholder", "소장자료검색");
+	    		$("#totalLeftSearchFrm").attr('action','/search/lib/result').submit();
+	    	}
+	    	else if($("input[name=detailUrl]").val() == "decisionsearch?"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/result').submit();
+	    	}
+	    	else if($("input[name=detailUrl]").val() == "pubserialsearch?"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/pub/result').submit();
+	    	}
+	    	else if($("input[name=detailUrl]").val() == "collectionsearch?"){
+	    		$("input[name=category]").val(1);
+	    		$("#totalLeftSearchFrm").attr('action','/search/collection/result').submit();
+	    	}
+	    	else if($("input[name=detailUrl]").val() == "homepagesearch?"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/site/result').submit();
+	    	}
+	    	
+	    	
+	    	if($(location).attr('pathname') == "/search/judg/press/case"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/press/case').submit();
+			}
+	    	if($(location).attr('pathname') == "/search/judg/press/decision"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/press/decision').submit();
+			}
+	    	if($(location).attr('pathname') == "/search/judg/decision/supreme"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/decision/supreme').submit();
+			}
+	    	if($(location).attr('pathname') == "/search/judg/decision/country"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/decision/country').submit();
+			}
+	    	if($(location).attr('pathname') == "/search/judg/case/eng"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/case/eng').submit();
+			}
+	    	if($(location).attr('pathname') == "/search/judg/case/chi"){
+	    		$("#totalLeftSearchFrm").attr('action','/search/judg/case/chi').submit();
+			}
+	    }
+	    function searchEnter() {
+			if (window.event.keyCode == 13) {
+				totalLeftSearchCallback();
+			}
+		}
+	    
+	    function searchPaging(totalPage){
+	    	var varPageNo = Number(1);
+	    	var varEndPageNo = Number(1);
+	    	var varPrevPageNo = Number(1);
+	    	var varNextPageNo = Number(1);
+	    	/*console.log("totalPage : "+totalPage);
+	    	console.log("varPageNo : "+varPageNo);
+	    	console.log("varEndPageNo : "+varEndPageNo);
+	    	console.log("varPrevPageNo : "+varPrevPageNo);
+	    	console.log("varNextPageNo : "+varNextPageNo);
+	    	console.log("display : " +$("input[name=display]").val());
+	    	console.log("pageNo : "+$("input[name=pageNo]").val());*/
+	    	$("#pagesetting").empty();
+        	
+        	str = '';
+        	if($("input[name=display]").val()!=0){
+        		if($("input[name=pageNo]").val()!=0){
+        			if(varPageNo > 10)
+        				str += '<a href="#" onclick="javascript:fn_movePage_search('+1+'); return false;" title="첫페이지목록">〈〈</a>';
+        		}
+        		
+        		if(varPageNo != 1) 
+        			str+= '<a href="#" onclick="javascript:fn_movePage_search('+varPrevPageNo+'); return false;" title="이전10개목록">〈</a>';
+        			str+='<ol>';
+					for(var i = 1; i<=varEndPageNo; i++)
+					{
+						//console.log(i);
+						if(i==varPageNo)
+							str+='<li><a href="#" onclick="javascript:fn_movePage_search('+i+'); return false;" class="focus"><font>'+i+'</font></a></li>';
+						else
+							str+='<li><a href="#" onclick="javascript:fn_movePage_search('+i+'); return false;">'+i+'</a></li>';	
+					}
+			    	str+='</ol>';
+        		
+			    
+			    if(varPageNo != totalPage) {
+			    	str +='<a href="#" onclick="javascript:fn_movePage_search('+varNextPageNo+'); return false;" title="다음10개목록">〉</a>';
+			    }
+			    
+				if(varEndPageNo < totalPage) {
+			    	str+='<a href="#" onclick="javascript:fn_movePage_search('+totalPage+'); return false;" title="마지막페이지목록">〉〉</a>';
+				}
+				
+			    $("#pagesetting").append(str);
+        	}
+        	else{
+        		str += '<div style="text-align: center;">';
+        		str += '조회된 결과가 없습니다.';
+        		str += '</div>';
+        		$("#pagesetting").append(str);
+        	}
+	    }
+	    
+	    /* 페이지 이동 function */
+     	function fn_movePage_search(val){
+     	    jQuery("input[name=pageNo]").val(val);
+     	    jQuery("form[name=totalSearchFrm]").attr("action","").submit();
+     	}
+	    
+     	/* 
+     	$(function () {
+	        $('.languageList li a').on('click', function () {
+	    		var keyword = this;
+	    		console.log(keyword);
+	    		var searchInput = $('#search_text1');
+	    		var searchKeyword = searchInput.val() + keyword.text;
+	    		searchInput.val(searchKeyword);
+	        });
+	    }); 
+     	*/
+     	
+	    var vm = new Vue({
+	    	el:"#multilingual",
+	    	data:{
+	    		selectedLang:0,
+	    		multilinguals: [
+	    		      {
+	    		        title: '히라가나',
+	    		        words: [
+	    		          'あ',
+	    		          'ぁ',
+	    		          'か',
+	    		          'が',
+	    		          'さ',
+	    		          'ざ',
+	    		          'た',
+	    		          'だ',
+	    		          'な',
+	    		          'は',
+	    		          'ば',
+	    		          'ぱ',
+	    		          'ま',
+	    		          'や',
+	    		          'ゃ',
+	    		          'ら',
+	    		          'わ',
+	    		          'ゎ',
+	    		          'ん',
+	    		          'い',
+	    		          'ぃ',
+	    		          'き',
+	    		          'ぎ',
+	    		          'し',
+	    		          'じ',
+	    		          'ち',
+	    		          'ぢ',
+	    		          'に',
+	    		          'ひ',
+	    		          'び',
+	    		          'ぴ',
+	    		          'み',
+	    		          'り',
+	    		          'う',
+	    		          'ぅ',
+	    		          'く',
+	    		          'ぐ',
+	    		          'す',
+	    		          'ず',
+	    		          'つ',
+	    		          'づ',
+	    		          'っ',
+	    		          'ぬ',
+	    		          'ふ',
+	    		          'ぶ',
+	    		          'ぷ',
+	    		          'む',
+	    		          'ゆ',
+	    		          'ゅ',
+	    		          'る',
+	    		          'え',
+	    		          'ぇ',
+	    		          'け',
+	    		          'げ',
+	    		          'せ',
+	    		          'ぜ',
+	    		          'て',
+	    		          'で',
+	    		          'ね',
+	    		          'へ',
+	    		          'べ',
+	    		          'ぺ',
+	    		          'め',
+	    		          'れ',
+	    		          'お',
+	    		          'ぉ',
+	    		          'こ',
+	    		          'ご',
+	    		          'そ',
+	    		          'ぞ',
+	    		          'と',
+	    		          'ど',
+	    		          'の',
+	    		          'ほ',
+	    		          'ぼ',
+	    		          'ぽ',
+	    		          'も',
+	    		          'よ',
+	    		          'ょ',
+	    		          'ろ',
+	    		          'を'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '카타가나',
+	    		        words: [
+	    		          'ア',
+	    		          'ァ',
+	    		          'カ',
+	    		          'ガ',
+	    		          'サ',
+	    		          'ザ',
+	    		          'タ',
+	    		          'ダ',
+	    		          'ナ',
+	    		          'ハ',
+	    		          'バ',
+	    		          'パ',
+	    		          'マ',
+	    		          'ヤ',
+	    		          'ャ',
+	    		          'ラ',
+	    		          'ワ',
+	    		          'ヮ',
+	    		          'ン',
+	    		          'イ',
+	    		          'ィ',
+	    		          'キ',
+	    		          'ギ',
+	    		          'シ',
+	    		          'ジ',
+	    		          'チ',
+	    		          'ヂ',
+	    		          'ニ',
+	    		          'ヒ',
+	    		          'ビ',
+	    		          'ピ',
+	    		          'ミ',
+	    		          'リ',
+	    		          'ウ',
+	    		          'ゥ',
+	    		          'ク',
+	    		          'グ',
+	    		          'ス',
+	    		          'ズ',
+	    		          'ツ',
+	    		          'ヅ',
+	    		          'ッ',
+	    		          'ヌ',
+	    		          'フ',
+	    		          'ブ',
+	    		          'プ',
+	    		          'ム',
+	    		          'ユ',
+	    		          'ュ',
+	    		          'ル',
+	    		          'エ',
+	    		          'ェ',
+	    		          'ケ',
+	    		          'ゲ',
+	    		          'セ',
+	    		          'ゼ',
+	    		          'テ',
+	    		          'デ',
+	    		          'ネ',
+	    		          'ヘ',
+	    		          'ベ',
+	    		          'ペ',
+	    		          'メ',
+	    		          'レ',
+	    		          'オ',
+	    		          'ォ',
+	    		          'コ',
+	    		          'ゴ',
+	    		          'ソ',
+	    		          'ゾ',
+	    		          'ト',
+	    		          'ド',
+	    		          'ノ',
+	    		          'ホ',
+	    		          'ボ',
+	    		          'ポ',
+	    		          'モ',
+	    		          'ヨ',
+	    		          'ョ',
+	    		          'ロ',
+	    		          'ヲ',
+	    		          '―'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '한글고어',
+	    		        words: [
+	    		          'ㅥ',
+	    		          'ㅦ',
+	    		          'ㅧ',
+	    		          'ㅨ',
+	    		          'ㅩ',
+	    		          'ㅪ',
+	    		          'ㅫ',
+	    		          'ㅬ',
+	    		          'ㅭ',
+	    		          'ㅮ',
+	    		          'ㅯ',
+	    		          'ㅰ',
+	    		          'ㅱ',
+	    		          'ㅲ',
+	    		          'ㅳ',
+	    		          'ㅴ',
+	    		          'ㅵ',
+	    		          'ㅶ',
+	    		          'ㅷ',
+	    		          'ㅸ',
+	    		          'ㅹ',
+	    		          'ㅺ',
+	    		          'ㅻ',
+	    		          'ㅼ',
+	    		          'ㅽ',
+	    		          'ㅾ',
+	    		          'ㅿ',
+	    		          'ㆀ',
+	    		          'ㆁ',
+	    		          'ㆂ',
+	    		          'ㆃ',
+	    		          'ㆄ',
+	    		          'ㆅ',
+	    		          'ㆆ',
+	    		          'ㆇ',
+	    		          'ㆈ',
+	    		          'ㆉ',
+	    		          'ㆊ',
+	    		          'ㆋ',
+	    		          'ㆌ',
+	    		          'ㆍ',
+	    		          'ㆎ'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '그리스문자',
+	    		        words: [
+	    		          'Α',
+	    		          'Β',
+	    		          'Γ',
+	    		          'Δ',
+	    		          'Ε',
+	    		          'Ζ',
+	    		          'Η',
+	    		          'Θ',
+	    		          'Ι',
+	    		          'Κ',
+	    		          'Λ',
+	    		          'Μ',
+	    		          'Ν',
+	    		          'Ξ',
+	    		          'Ο',
+	    		          'Π',
+	    		          'Ρ',
+	    		          'Σ',
+	    		          'Τ',
+	    		          'Υ',
+	    		          'Φ',
+	    		          'Χ',
+	    		          'Ψ',
+	    		          'Ω',
+	    		          'α',
+	    		          'β',
+	    		          'γ',
+	    		          'δ',
+	    		          'ε',
+	    		          'ζ',
+	    		          'η',
+	    		          'θ',
+	    		          'ι',
+	    		          'κ',
+	    		          'λ',
+	    		          'μ',
+	    		          'ν',
+	    		          'ξ',
+	    		          'ο',
+	    		          'π',
+	    		          'ρ',
+	    		          'σ',
+	    		          'τ',
+	    		          'υ',
+	    		          'φ',
+	    		          'χ',
+	    		          'ψ',
+	    		          'ω'
+	    		        ]
+	    		      },
+	    		      // {
+	    		      //   title: '괄호기호',
+	    		      //   words: [['‘', '’', '“', '”', '〔', '〕', '〈', '〉', '「', '」', '『', '』', '【', '】', '＂', '（', '）', '［', '］', '｛', '｝']]
+	    		      // },
+	    		      {
+	    		        title: '학술기호',
+	    		        words: [
+	    		          '±',
+	    		          '×',
+	    		          '÷',
+	    		          '≠',
+	    		          '≤',
+	    		          '≥',
+	    		          '∞',
+	    		          '∴',
+	    		          '♂',
+	    		          '♀',
+	    		          '∠',
+	    		          '⊥',
+	    		          '⌒',
+	    		          '∂',
+	    		          '∇',
+	    		          '≡',
+	    		          '≒',
+	    		          '≪',
+	    		          '≫',
+	    		          '√',
+	    		          '∽',
+	    		          '∝',
+	    		          '∵',
+	    		          '∫',
+	    		          '∬',
+	    		          '∈',
+	    		          '∋',
+	    		          '⊆',
+	    		          '⊇',
+	    		          '⊂',
+	    		          '⊃',
+	    		          '∪',
+	    		          '∩',
+	    		          '∧',
+	    		          '∨',
+	    		          '￢',
+	    		          '⇒',
+	    		          '⇔',
+	    		          '∀',
+	    		          '∃',
+	    		          '∮',
+	    		          '∑',
+	    		          '∏',
+	    		          '＋',
+	    		          '－',
+	    		          '＜',
+	    		          '＝',
+	    		          '＞'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '기술기호',
+	    		        words: [
+	    		          '、',
+	    		          '。',
+	    		          '·',
+	    		          '‥',
+	    		          '…',
+	    		          '¨',
+	    		          '〃',
+	    		          '­',
+	    		          '―',
+	    		          '∥',
+	    		          '＼',
+	    		          '∼',
+	    		          '´',
+	    		          '～',
+	    		          'ˇ',
+	    		          '˘',
+	    		          '˝',
+	    		          '˚',
+	    		          '˙',
+	    		          '¸',
+	    		          '˛',
+	    		          '¡',
+	    		          '¿',
+	    		          'ː',
+	    		          '！',
+	    		          '＇',
+	    		          '，',
+	    		          '．',
+	    		          '／',
+	    		          '：',
+	    		          '；',
+	    		          '？',
+	    		          '＾',
+	    		          '＿',
+	    		          '｀',
+	    		          '｜',
+	    		          '￣'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '라틴문자',
+	    		        words: [
+	    		          'Æ',
+	    		          'Ð',
+	    		          'Ħ',
+	    		          'ĲvĿ',
+	    		          'Ł',
+	    		          'Ø',
+	    		          'Œ',
+	    		          'Þ',
+	    		          'Ŧ',
+	    		          'Ŋ',
+	    		          'æ',
+	    		          'đ',
+	    		          'ð',
+	    		          'ħ',
+	    		          'ı',
+	    		          'ĳ',
+	    		          'ĸ',
+	    		          'ŀ',
+	    		          'ł',
+	    		          'ø',
+	    		          'œ',
+	    		          'ß',
+	    		          'þ',
+	    		          'ŧ',
+	    		          'ŋ',
+	    		          'ŉ'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '러시아문자',
+	    		        words: [
+	    		          'А',
+	    		          'Б',
+	    		          'В',
+	    		          'Г',
+	    		          'Д',
+	    		          'Е',
+	    		          'Ё',
+	    		          'Ж',
+	    		          'З',
+	    		          'И',
+	    		          'Й',
+	    		          'К',
+	    		          'Л',
+	    		          'М',
+	    		          'Н',
+	    		          'О',
+	    		          'П',
+	    		          'Р',
+	    		          'С',
+	    		          'Т',
+	    		          'У',
+	    		          'Ф',
+	    		          'Х',
+	    		          'Ц',
+	    		          'Ч',
+	    		          'Ш',
+	    		          'Щ',
+	    		          'Ъ',
+	    		          'Ы',
+	    		          'Ь',
+	    		          'Э',
+	    		          'Ю',
+	    		          'Я',
+	    		          'а',
+	    		          'б',
+	    		          'в',
+	    		          'г',
+	    		          'д',
+	    		          'е',
+	    		          'ё',
+	    		          'ж',
+	    		          'з',
+	    		          'и',
+	    		          'й',
+	    		          'к',
+	    		          'л',
+	    		          'м',
+	    		          'н',
+	    		          'о',
+	    		          'п',
+	    		          'р',
+	    		          'с',
+	    		          'т',
+	    		          'у',
+	    		          'ф',
+	    		          'х',
+	    		          'ц',
+	    		          'ч',
+	    		          'ш',
+	    		          'щ',
+	    		          'ъ',
+	    		          'ы',
+	    		          'ь',
+	    		          'э',
+	    		          'ю',
+	    		          'я'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '단위기호',
+	    		        words: [
+	    		          '′',
+	    		          '″',
+	    		          '℃',
+	    		          'Å',
+	    		          '￠',
+	    		          '￡',
+	    		          '￥',
+	    		          '¤',
+	    		          '℉',
+	    		          '‰',
+	    		          '＄',
+	    		          '％',
+	    		          'Ｆ',
+	    		          '￦',
+	    		          '㎕',
+	    		          '㎖',
+	    		          '㎗',
+	    		          'ℓ',
+	    		          '㎘',
+	    		          '㏄',
+	    		          '㎣',
+	    		          '㎤',
+	    		          '㎥',
+	    		          '㎦',
+	    		          '㎙',
+	    		          '㎚',
+	    		          '㎛',
+	    		          '㎜',
+	    		          '㎝',
+	    		          '㎞',
+	    		          '㎟',
+	    		          '㎠',
+	    		          '㎡',
+	    		          '㎢',
+	    		          '㏊',
+	    		          '㎍',
+	    		          '㎎',
+	    		          '㎏',
+	    		          '㏏',
+	    		          '㎈',
+	    		          '㎉',
+	    		          '㏈',
+	    		          '㎧',
+	    		          '㎨',
+	    		          '㎰',
+	    		          '㎱',
+	    		          '㎲',
+	    		          '㎳',
+	    		          '㎴',
+	    		          '㎵',
+	    		          '㎶',
+	    		          '㎷',
+	    		          '㎸',
+	    		          '㎹',
+	    		          '㎀',
+	    		          '㎁',
+	    		          '㎂',
+	    		          '㎃',
+	    		          '㎄',
+	    		          '㎺',
+	    		          '㎻',
+	    		          '㎽',
+	    		          '㎾',
+	    		          '㎿',
+	    		          '㎐',
+	    		          '㎑',
+	    		          '㎒',
+	    		          '㎓',
+	    		          '㎔',
+	    		          'Ω',
+	    		          '㏀',
+	    		          '㏁',
+	    		          '㎊',
+	    		          '㎋',
+	    		          '㎌',
+	    		          '㏖',
+	    		          '㏅',
+	    		          '㎭',
+	    		          '㎮',
+	    		          '㎯',
+	    		          '㏛',
+	    		          '㎩',
+	    		          '㎪',
+	    		          '㎫',
+	    		          '㎬',
+	    		          '㏝',
+	    		          '㏐',
+	    		          '㏓',
+	    		          '㏃',
+	    		          '㏉',
+	    		          '㏜',
+	    		          '㏆'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '일반기호',
+	    		        words: [
+	    		          '§',
+	    		          '※',
+	    		          '☆',
+	    		          '★',
+	    		          '○',
+	    		          '●',
+	    		          '◎',
+	    		          '◇',
+	    		          '◆',
+	    		          '□',
+	    		          '■',
+	    		          '△',
+	    		          '▽',
+	    		          '→',
+	    		          '←',
+	    		          '↑',
+	    		          '↓',
+	    		          '↔',
+	    		          '〓',
+	    		          '◁',
+	    		          '◀',
+	    		          '▷',
+	    		          '▶',
+	    		          '♤',
+	    		          '♠',
+	    		          '♡',
+	    		          '♥',
+	    		          '♧',
+	    		          '♣',
+	    		          '⊙',
+	    		          '◈',
+	    		          '▣',
+	    		          '◐',
+	    		          '◑',
+	    		          '▒',
+	    		          '▤',
+	    		          '▥',
+	    		          '▨',
+	    		          '▧',
+	    		          '▦',
+	    		          '▩',
+	    		          '♨',
+	    		          '☏',
+	    		          '☎',
+	    		          '☜',
+	    		          '☞',
+	    		          '¶',
+	    		          '†',
+	    		          '‡',
+	    		          '↕',
+	    		          '↗',
+	    		          '↙',
+	    		          '↖',
+	    		          '↘',
+	    		          '♭',
+	    		          '♩',
+	    		          '♪',
+	    		          '♬',
+	    		          '㉿',
+	    		          '㈜',
+	    		          '№',
+	    		          '㏇',
+	    		          '™',
+	    		          '㏂',
+	    		          '㏘',
+	    		          '℡',
+	    		          '＃',
+	    		          '＆',
+	    		          '＊',
+	    		          '＠',
+	    		          'ª',
+	    		          'º'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '로마자',
+	    		        words: [
+	    		          'ⅰ',
+	    		          'ⅱ',
+	    		          'ⅲ',
+	    		          'ⅳ',
+	    		          'ⅴ',
+	    		          'ⅵ',
+	    		          'ⅶ',
+	    		          'ⅷ',
+	    		          'ⅸ',
+	    		          'ⅹ',
+	    		          'Ⅰ',
+	    		          'Ⅱ',
+	    		          'Ⅲ',
+	    		          'Ⅳ',
+	    		          'Ⅴ',
+	    		          'Ⅵ',
+	    		          'Ⅶ',
+	    		          'Ⅷ',
+	    		          'Ⅸ',
+	    		          'Ⅹ'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '베트남어',
+	    		        words: [
+	    		          'b',
+	    		          'c',
+	    		          'd',
+	    		          'đ',
+	    		          'g',
+	    		          'h',
+	    		          'k',
+	    		          'l',
+	    		          'm',
+	    		          'n',
+	    		          'p',
+	    		          'q',
+	    		          'r',
+	    		          's',
+	    		          't',
+	    		          'v',
+	    		          'x',
+	    		          'f',
+	    		          'j',
+	    		          'w',
+	    		          'z',
+	    		          'a',
+	    		          'á',
+	    		          'à',
+	    		          'ả',
+	    		          'ã',
+	    		          'ạ',
+	    		          'ă',
+	    		          'ắ',
+	    		          'ằ',
+	    		          'ẳ',
+	    		          'ẵ',
+	    		          'ặ',
+	    		          'â',
+	    		          'ấ',
+	    		          'ầ',
+	    		          'ẩ',
+	    		          'ẫ',
+	    		          'ậ',
+	    		          'o',
+	    		          'ó',
+	    		          'ò',
+	    		          'ỏ',
+	    		          'õ',
+	    		          'ọ',
+	    		          'ô',
+	    		          'ố',
+	    		          'ồ',
+	    		          'ổ',
+	    		          'ỗ',
+	    		          'ộ',
+	    		          'ơ',
+	    		          'ớ',
+	    		          'ờ',
+	    		          'ở',
+	    		          'ỡ',
+	    		          'ợ',
+	    		          'e',
+	    		          'é',
+	    		          'è',
+	    		          'ẻ',
+	    		          'ẽ',
+	    		          'ẹ',
+	    		          'ê',
+	    		          'ế',
+	    		          'ề',
+	    		          'ể',
+	    		          'ễ',
+	    		          'ệ',
+	    		          'u',
+	    		          'ú',
+	    		          'ù',
+	    		          'ủ',
+	    		          'ũ',
+	    		          'ụ',
+	    		          'ư',
+	    		          'ứ',
+	    		          'ừ',
+	    		          'ử',
+	    		          'ữ',
+	    		          'ự',
+	    		          'i',
+	    		          'í',
+	    		          'ì',
+	    		          'ỉ',
+	    		          'ĩ',
+	    		          'ị',
+	    		          'y',
+	    		          'ý',
+	    		          'ỳ',
+	    		          'ỷ',
+	    		          'ỹ',
+	    		          'ỵ'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '캄보디아어',
+	    		        words: [
+	    		          'ក',
+	    		          'ខ',
+	    		          'គ',
+	    		          'ឃ',
+	    		          'ង',
+	    		          'ច',
+	    		          'ឆ',
+	    		          'ជ',
+	    		          'ឈ',
+	    		          'ញ',
+	    		          'ដ',
+	    		          'ឋ',
+	    		          'ឌ',
+	    		          'ឍ',
+	    		          'ណ',
+	    		          'ត',
+	    		          'ថ',
+	    		          'ទ',
+	    		          'ធ',
+	    		          'ន',
+	    		          'ប',
+	    		          'ផ',
+	    		          'ព',
+	    		          'ភ',
+	    		          'ម',
+	    		          'យ',
+	    		          'រ',
+	    		          'ល',
+	    		          'វ',
+	    		          'ឝ',
+	    		          'ឞ',
+	    		          'ស',
+	    		          'ហ',
+	    		          'ឡ',
+	    		          'អ',
+	    		          'ឣ',
+	    		          'ឤ',
+	    		          'ឥ',
+	    		          'ឦ',
+	    		          'ឧ',
+	    		          'ឨ',
+	    		          'ឩ',
+	    		          'ឪ',
+	    		          'ឫ',
+	    		          'ឬ',
+	    		          'ឭ',
+	    		          'ឮ',
+	    		          'ឯ',
+	    		          'ឰ',
+	    		          'ឱ',
+	    		          'ឲ',
+	    		          'ឳ',
+	    		          '឴',
+	    		          '឵',
+	    		          'ា',
+	    		          'ិ',
+	    		          'ី',
+	    		          'ឹ',
+	    		          'ឺ',
+	    		          'ុ',
+	    		          'ូ',
+	    		          'ួ',
+	    		          'ើ',
+	    		          'ឿ',
+	    		          'ៀ',
+	    		          'េ',
+	    		          'ែ',
+	    		          'ៃ',
+	    		          'ោ',
+	    		          'ៅ',
+	    		          'ំ',
+	    		          'ះ',
+	    		          'ៈ',
+	    		          '៉',
+	    		          '៊',
+	    		          '់',
+	    		          '៌',
+	    		          '៍',
+	    		          '៎',
+	    		          '៏',
+	    		          '័',
+	    		          '៑',
+	    		          '្',
+	    		          '៓',
+	    		          '។',
+	    		          '៕',
+	    		          '៖',
+	    		          'ៗ',
+	    		          '៘',
+	    		          '៙',
+	    		          '៚',
+	    		          '៛',
+	    		          'ៜ',
+	    		          '៝',
+	    		          '០',
+	    		          '១',
+	    		          '២',
+	    		          '៣',
+	    		          '៤',
+	    		          '៥',
+	    		          '៦',
+	    		          '៧',
+	    		          '៨',
+	    		          '៩',
+	    		          '៰',
+	    		          '៱',
+	    		          '៲',
+	    		          '៳',
+	    		          '៴',
+	    		          '៵',
+	    		          '៶',
+	    		          '៷',
+	    		          '៸',
+	    		          '៹'
+	    		        ]
+	    		      },
+	    		      {
+	    		        title: '태국어',
+	    		        words: [
+	    		          'ๅ',
+	    		          '/',
+	    		          '_',
+	    		          'ภ',
+	    		          'ถ',
+	    		          'ุ',
+	    		          'ึ',
+	    		          'ค',
+	    		          'ต',
+	    		          'จ',
+	    		          'ข',
+	    		          'ช',
+	    		          'ๆ',
+	    		          'ไ',
+	    		          'ำ',
+	    		          'พ',
+	    		          'ะ',
+	    		          'ั',
+	    		          'ี',
+	    		          'ร',
+	    		          'น',
+	    		          'ย',
+	    		          'บ',
+	    		          'ล',
+	    		          'ฟ',
+	    		          'ห',
+	    		          'ก',
+	    		          'ด',
+	    		          'เ',
+	    		          '้',
+	    		          '่',
+	    		          'ส',
+	    		          'า',
+	    		          'ว',
+	    		          'ง',
+	    		          'ฃ',
+	    		          'ผ',
+	    		          'ป',
+	    		          'แ',
+	    		          'อ',
+	    		          'ิ',
+	    		          'ื',
+	    		          'ท',
+	    		          'ม',
+	    		          'ใ',
+	    		          'ฝ',
+	    		          '+',
+	    		          '๑',
+	    		          '๒',
+	    		          '๓',
+	    		          '๔',
+	    		          'ู',
+	    		          '฿',
+	    		          '๕',
+	    		          '๖',
+	    		          '๗',
+	    		          '๘',
+	    		          '๙',
+	    		          '๐',
+	    		          '"',
+	    		          'ฎ',
+	    		          'ฑ',
+	    		          'ธ',
+	    		          'ํ',
+	    		          '๊',
+	    		          'ณ',
+	    		          'ฯ',
+	    		          'ญ',
+	    		          'ฐ',
+	    		          ',',
+	    		          'ฤ',
+	    		          'ฆ',
+	    		          'ฏ',
+	    		          'โ',
+	    		          'ฌ',
+	    		          '็',
+	    		          '๋',
+	    		          'ษ',
+	    		          'ศ',
+	    		          'ซ',
+	    		          '.',
+	    		          'ฅ',
+	    		          '(',
+	    		          ')',
+	    		          'ฉ',
+	    		          'ฮ',
+	    		          'ฺ',
+	    		          '์',
+	    		          '?',
+	    		          'ฒ',
+	    		          'ฬ',
+	    		          'ฦ'
+	    		        ]
+	    		      }
+	    		    ],
+	    	},
+	    	methods:{
+	    		clickLang:function(i){
+	    			this.selectedLang = i
+	    		},
+	    		inputKeyword:function(word){
+	    			//console.log(word);
+	    			var searchInput = document.getElementById('search_text1');
+	    			searchInput.value = searchInput.value + word;
+	    		}
+	    	}
+	    })
+    </script>
+	<section class="contentArea maxBox" id="start_contents">
+		
+    
+
+
+
+
+
+
+
+
+
+
+
+
+	<h2>판례판결</h2>
+	<!--컨텐츠시작-->
+	<form>
+		<div class="boardViewArea">
+			
+				
+					
+					
+						<h4>성년후견 개시 성년후견의 개시 심판과 별도로 성년후견인 선임 심판 또는 성년후견인의 권한 범위를 정한 심판에 대하여만 불복한 사건</h4>
+						<ul class="boardData">
+							<li>
+								<span class="search_detail_entry">법원</span>
+								
+									
+									대법원
+								
+							</li>
+							
+							<li>
+								<span class="search_detail_entry">선고일자</span>
+								
+									
+									2026. 07. 07.
+								
+							</li>
+							<li>
+								<span class="search_detail_entry">사건분류</span>
+								
+									-
+									
+								
+							</li>
+							
+						</ul>
+						<div class="boardContents">
+							
+								
+								
+								
+									2024스786   성년후견 개시   (다)   재항고기각<br/>[성년후견의 개시 심판과 별도로 성년후견인 선임 심판 또는 성년후견인의 권한 범위를 정한 심판에 대하여만 불복한 사건] <br/>◇성년후견의 개시 심판과 별도로 성년후견인 선임 심판 또는 성년후견인의 권한 범위를 정한 심판에 대하여만 즉시항고를 제기하는 것이 허용되는지 여부(소극) 및 허용되는 불복 방법(= 특별항고)◇ <br/>  민법 제929조는 “가정법원의 성년후견개시심판이 있는 경우에는 그 심판을 받은 사람의 성년후견인을 두어야 한다.”라고 규정하고, 제936조 제1항은 ‘제929조에 따른 성년후견인은 가정법원이 직권으로 선임’하도록 규정한다. 한편 가사소송법 제43조 제1항은 가사비송심판의 불복 방법에 관하여 “대법원규칙으로 따로 정하는 경우에 한정하여 즉시항고만을 할 수 있다.”라고 규정하는데, 성년후견 사건에서 즉시항고에 관한 규정인 가사소송규칙 제36조 제1항 제1호 가목은 ‘성년후견의 개시 심판’에 대하여 즉시항고를 할 수 있다고 정할 뿐 그 심판과 동시에 이루어지는 성년후견인 선임 심판 또는 성년후견인의 권한 범위를 정한 심판에 관하여는 불복할 수 있는 근거 규정을 두고 있지 않다.<br/>  그렇다면 성년후견의 개시 심판과 별도로 성년후견인 선임 심판 또는 성년후견인의 권한 범위를 정한 심판에 대하여만 즉시항고를 제기하는 것은 허용되지 않는다고 보아야 하고, 이에 대하여는 가사소송법 제34조, 비송사건절차법 제23조에 의하여 가사비송절차에 준용되는 민사소송법 제449조 제1항의 특별항고로써만 불복할 수 있다.<br/>  따라서 성년후견인 선임 심판 또는 성년후견인의 권한 범위를 정한 심판에 대하여만 불복하는 취지로 항고가 제기된 경우 당사자가 특별항고라는 표시를 하지 않았더라도 제1심법원은 이를 특별항고로 다루어 기록을 대법원에 송부해야 하고, 이와 달리 제1심법원이 항고법원에 해당하는 가정법원 합의부로 그 기록을 송부하여 항고법원 사건으로 접수되었다면 항고법원은 특별항고를 전속관할하는 대법원에 그 사건을 이송해야 한다(대법원 2014. 3. 17. 자 2013마2353 결정 참조).<br/>☞  청구인은 사건본인에 대하여 성년후견의 개시 심판을 청구하였는데, 1심은 사건본인에 대하여 성년후견을 개시하면서 제3자를 성년후견인으로 선임하는 심판을 하였음. 청구인이 성년후견의 개시 심판에 대하여는 불복하지 않으면서, 성년후견인 선임심판 및 성년후견인의 권한 범위를 정한 심판에 대하여만 항고를 제기하자 1심은 이를 즉시항고로 보아 사건기록을 원심에 송부하였음 <br/>☞  원심은 성년후견인 선임심판 및 성년후견인의 권한 범위를 정한 심판에 대하여는 특별항고로만 불복할 수 있다고 보고 사건을 대법원으로 이송하는 결정을 하였음 <br/>☞  대법원은 위와 같은 법리를 설시하면서, 원심을 수긍하여 재항고(이송결정에 대한 재항고)를 기각함
+								
+							
+						</div>
+						
+							<div class="navFile ma30">
+								<dl>
+									<dt>첨부파일</dt>
+									
+										<dd>
+											<div class="filedownload">
+												<img src="/images/egovframework/scourt/board/boardFile.png" alt="대법원_2024스786_1_0(비실명).pdf" />
+												<a href="javascript:openJudgFilePopup('대법원_2024스786_1_0(비실명).pdf', '3', '2', '');">
+													<span class="file_gubun_box file_gubun_box_book_1">
+														
+															
+															원문
+															
+															
+															
+														
+													</span>대법원_2024스786_1_0(비실명).pdf
+												</a>
+											</div>
+										</dd>
+									
+								</dl>
+							</div>
+						
+					
+					
+				
+			
+			
+		</div>
+		<div class="centerBox">
+			<a href="javascript:history.back();" class="basicBtn basicBtn1">목록으로</a>
+		</div>
+	</form>
+	<!--컨텐츠끝-->
+
+
+<div class="layerBox" id="judgFilePopup">
+	<div class="searchLayer searchLayerSc">
+		<div>
+			<div class="searchLayerBoardArea2" style="margin-top: 25px;">
+				<table class="searchLayerBoard2">
+					<caption class="hide">첨부파일표로 번호, 첨부파일, 다운로드 정보를 제공합니다</caption>
+					<colgroup>
+						<col style="width: 15%">
+						<col style="width: *">
+						<col style="width: 23%">
+					</colgroup>
+					<thead>
+						<tr>
+							<th scope="col">번호</th>
+							<th scope="col">파일명</th>
+							<th scope="col">다운로드</th>
+						</tr>
+					</thead>
+					<tbody class="fileList" name="volList">
+						<tr>
+							<td></td>
+							<td class="searchBTitle"><span class="listOpenBtn" tabindex="0"></span></td>
+							<td><a>다운로드</a></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<a href="javascript:void(0);" class="layer_close" onclick="closeJudgFilePopup()"> 
+			<img src="/images/egovframework/scourt/navconXb.png" alt="닫기">
+		</a>
+	</div>
+</div>
+<style>
+	#judgFilePopup.open{
+		opacity:1;
+		width:100%;
+		height:100%;
+		pointer-events: auto;
+	}
+	.fileName{
+		color: #014099;
+	}
+	@media (min-width: 1359px){
+		#judgFilePopup > div.searchLayerSc {
+		    max-width: 650px;
+		    transform: translateX(50%);
+		    max-height: 350px;
+		    overflow:auto;
+		    margin-top: -250px;
+		    margin-left:-640px;
+		}
+	}
+		
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="layerBox" id="judg_text_popup">
+	<div class="searchLayer searchLayerSc custom-judg">
+		<div class="custom_txt custom_subTxt">
+			<h5 name="txHead" class="txtHead txtHeadData" tabindex="1"></h5>
+			<div class="txt_table_custom">
+				<div class="txt_bold txtSubHeadData"></div>
+				<div class="txt_bold txtReportData"></div>
+				<div class="txt_bold txtNickData"></div>
+			</div>
+		</div>
+		<div class="custom_scroll">
+		<div class="custom_box txtAbstSection">
+			<h5 class="box_title">판시사항</h5>
+			<div>
+				<p class="custom_font_padding txtAbstData"></p>
+			</div>
+		</div>
+		<div class="custom_box txtNoteSection">
+			<h5 class="box_title">판결요지</h5>
+			<div>
+				<p class="custom_font_padding txtNoteData"></p> 
+			</div>
+		</div>
+		<div class="custom_box txtRefLawSection">
+			<h5 class="box_title">참조조문</h5>
+			<div>
+				<p class="custom_font_padding txtRefLawData"></p>	
+			</div>
+		</div>
+		<div class="custom_box">
+			<h5 class="box_title">전문</h5>
+			<div>
+				<h5 class="txt_title wordspacing10 txtCourtNameData"></h5>
+				<h5 class="txt_title wordspacing10">판&nbsp;결</h5>
+				<div class="txt_table">
+					<table>
+						<caption class="hide">무슨테이블일까</caption>
+						<colgroup>
+							<col width="120px">
+						</colgroup>
+						<tbody id="txtCaseTbData">
+							<tr class="row_custom">
+								<th class="txt_tb_title custom-spacing">사&nbsp;건</th>
+								<td class="txt_td txtCaseTbTitleData"></td>
+							</tr>
+							<tr class="row_custom">
+								<!-- <th class="txt_tb_title custom_spacing_one">원고,&nbsp;상고인</th> -->
+								<th class="txt_tb_title custom_spacing_one"></th>
+								<td class="txt_td txtCaseTbAccData"></td>
+							</tr>
+							<tr class="row_custom">
+								<!-- <th class="txt_tb_title">피고, 피상고인</th> -->
+								<th class="txt_tb_title"></th>
+								<td class="txt_td txtCaseTbDefData"></td>
+							</tr>
+							<tr class="row_custom">
+								<!-- <th class="txt_tb_title custom_spacing_two">원&nbsp;심&nbsp;판&nbsp;결</th> -->
+								<th class="txt_tb_title custom_spacing_two">원&nbsp;심&nbsp;판&nbsp;결</th>
+								<td class="txt_td txtCaseTbRefData"></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="txtOutComeSection">
+					<h5 class="txt_subTitle wordspacing10">주&nbsp;문</h5>
+					<p class="custom_font_padding txtOutComeData"></p>
+				</div>
+				<div class="txtReasonSection">
+					<h5 class="txt_subTitle wordspacing10">이&nbsp;유</h5>
+					<p class="custom_font_padding txtReasonData"></p>
+				</div>
+				<div class="txt_center txtJudgesSection">
+					<table>
+						<caption class="hide">무슨테이블일까</caption>
+						<colgroup>
+							<col width="20px">
+						</colgroup>
+						<tbody class="txtJudgesData"></tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+		</div>
+		<!-- <a href="javascript:JudgText.judgPrint();" style="right: 40px;">
+			<img src="/images/egovframework/scourt/sub/subP.png" alt="print" />
+		</a> -->
+		<a href="javascript:void(0);" class="layer_close" tabindex="1">
+			<img src="/images/egovframework/scourt/navconXb.png" alt="닫기" />
+		</a>
+	</div>
+</div>
+<script src="/js/search/judgText.js"></script>
+<!-- 권호정보 팝업 끝 -->
+
+<script src="/js/search/totalSearch.js?v=1784074452114"></script>
+
+	</section>
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+	<div class="section fp-auto-height mainB" id="section3" style="height:0;">
+        <div id="skip_beforeBtn">
+            <a class="beforeBtn beforeBtn4" href="#">이전섹션으로 가기</a>
+        </div>
+	    <div class="footerArea">
+	        <footer>
+	            <div class="maxBox">
+	                <div class="footerBottom">
+	                    <a href="/">
+	                        <img src="/images/egovframework/scourt/logoW.png" alt="법원도서관" />
+	                    </a>
+	                    <ul class="footerQlist">
+	                        <li><a href="/introduction/rule/private">개인정보처리방침</a></li>
+	                        <li><a href="/introduction/rule/video">영상정보처리기기 운영·관리방침</a></li>
+	                        
+	                        <li><a href="https://portal.scourt.go.kr/pgp/index.on?m=PGP204M01&l=N&c=200" target="_blank" title="새창 열림">판결서 방문열람신청</a></li>
+	                        
+	                        <li><a href="/openspace/parti/faq/list">자주하는 질문</a></li>
+	                        <li><a href="/collection/world/site">관련사이트</a></li>
+	                    </ul>
+	                    <div class="footerAddress">
+	                        <address style="font-size : medium;">
+	                            (10413)경기도 고양시 일산동구 호수로 550
+	                            <!-- 열람안내 031) 920-3701~2, 3705~6 | 일반안내 031) 920-3612~3 -->
+	                            <br />대표번호 : 031)920-3700 | 대출안내 : 031)920-3701 ~ 2(일반자료), 3704 ~ 5(국내법률), 3707(국외법률)
+	                        </address>
+	                        <p class="copyright">COPYRIGHT(C) 2021 SUPREME COURT LIBRARY OF KOREA. ALL RIGHTS RESERVED</p>
+	                    </div>
+<!-- 						<div class="footerWebConnection"> -->
+<!-- 				            <a title="새창" href="/introduction/rule/web"> -->
+<!-- 				            	<img alt="과학기술정보통신부 WA(WEB접근성) 품질인증 마크, 웹와치(WebWatch) 2023.05.23 ~ 2024.05.22" src="/images/egovframework/scourt/info/WA_Mark.png" style="width:120px;" /> -->
+<!-- 				            </a>	                     -->
+<!-- 	                    </div> -->
+	                    <div class="footerSiteListR">
+	                        <div class="footerSiteList">	                          
+	                            <ul>
+	                                <li><a href="https://www.facebook.com/Library.scourt.korea?applink=1" target="_blank" title="새창 열림"><img src="/images/egovframework/scourt/snsF.png" alt="페이스북 바로가기" /></a></li>
+	                                <li><a href="https://instagram.com/scourtlibrarykorea?utm_medium=copy_link" target="_blank" title="새창 열림"><img src="/images/egovframework/scourt/snsI.png" alt="인스타그램 바로가기" /></a></li>
+	                                <li><a href="https://pf.kakao.com/_wxeHxixb?applink=1" target="_blank" title="새창 열림"><img src="/images/egovframework/scourt/snsK.png" alt="카카오톡 바로가기" /></a></li>
+	                                <li><a href="https://youtube.com/channel/UCcNmSA80QajqkQ58c4OFSkA" target="_blank" title="새창 열림"><img src="/images/egovframework/scourt/snsU.png" alt="유투브 바로가기" /></a></li>
+	                            </ul>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        </footer>
+	    </div>
+	</div>
+	 <!--바구니 팝업  -->
+	 <div class="basket" id="searchresult" v-cloak style="display:none;">
+	  	<div class="layerBoxInBasket" v-if="bookCaseList!=undefined">
+	      	<div>
+	      		<h4 class="viewbasketBtn" tabindex="-1">바구니 담기</h4>
+              	<ul>
+	           	  	<li v-for="book in bookCaseList.bookcaseList" class="record_list" style="background:none; padding-left: 16px;">
+	    	       		<p @click="onBasketPut(book)" @keydown.enter="onBasketPut(book)" style="cursor:pointer;" id="byyaaa" tabindex="0">{{book.bookcaseName}}</p>
+	               	</li>
+                </ul>
+             </div>
+             <a href="javascript:openBasketPopup(false)" class="layer_close" style="cursor:pointer;"><img src="/images/egovframework/scourt/navconXb.png" alt="닫기" /></a>
+         </div>
+  	 </div>
+     <!--  E : 바구니 팝업  -->
+<form id="fileDownFrm" name="fileDownFrm" method="post" accept-charset="UTF-8">
+	<input type="hidden" name="fileName" value="" />
+	<input type="hidden" name="fileType" value="" />
+</form>
+<iframe id="fileFrame" name="fileFrame" style="width:0px; height:0px; visibility:hidden;" title="빈 프레임"></iframe>
+<form id="korEBookSSO" name="korEBookSSO" method="post" target="_blank" title="새창 열림" style="display: none;">
+	<input type="hidden" name="param_1" />
+	<input type="hidden" name="param_2" />
+	<input type="hidden" name="param_3" />
+	<input type="hidden" name="param_6" />
+</form>
+<form id="fgnEBookSSO" name="fgnEBookSSO" method="get" target="_blank" title="새창 열림" style="display: none;">
+	<input type="hidden" name="profile" />
+	<input type="hidden" name="defaultdb" />
+	<input type="hidden" name="authtype" />
+</form>
+<form id="eBookSSO" name="eBookSSO" method="post" target="_blank" title="새창 열림" style="display: none;">
+	<input type="hidden" name="id" />
+	<input type="hidden" name="name" />
+	<input type="hidden" name="r" />
+</form>
+<form id="subEBookSSO" name="subEBookSSO" method="post" target="_blank" title="새창 열림" style="display: none;">
+	<input type="hidden" name="requestCode" />
+	<input type="hidden" name="requestId" />
+</form>
+
+	
+	
+		<script>
+			function goKorEBookSSO() {
+				location.href="/user/login?redirect=/&fail=9";
+			}
+	
+			function goFgnEBookSSO() {
+				location.href="/user/login?redirect=/&fail=9";
+			}
+			
+			function goEBookSSO() {
+				location.href="/user/login?redirect=/&fail=9";
+			}
+			
+			function goSubEBookSSO() {
+				location.href="/user/login?redirect=/&fail=9";
+			}
+		</script>
+	
+
+
+	
+	
+		<script>
+			function openBasketPopup(CONTROL_NO,DATA_TYPE_CODE,isBoolean) {
+				location.href="/user/login?redirect=/&fail=9";
+			}
+		</script>
+	
+
+<script>
+ var vm = new Vue({
+	el:'#searchresult',
+	name:'searchResult',
+	data:{
+		bookCaseList:[],
+	},
+	created:function(){
+		this.getBasketList();
+	},
+	methods:{
+		getBasketList:function(){
+   			var that = this;
+   			$.ajax({
+				url : "/api/basket/list.do",
+				contentType : "application/json",
+				async : false,
+				type : 'get',
+				success : function(data) {
+					that.bookCaseList = data.contents;
+				},
+				error : function() {
+					alert("error");
+				}
+			});
+   		},
+   		onBasketPut:function(book){
+   			var that=this;
+   			var params = basketBookInfo;
+   			params.bookcaseName=book.bookcaseName;
+   			params.bookcaseKey = book.recKey;
+   			//console.log(params);
+   			$.ajax({
+				url : "/api/basket/book/insert.do",
+				data : JSON.stringify(params),
+				contentType : "application/json",
+				async : false,
+				type : 'post',
+				success : function(data) {
+					if(data.result==false){
+						alert(data.message);
+						return -1
+					}
+					else alert(params.bookcaseName+'에 추가되었습니다.');
+				},
+				error : function() {
+					alert("error");
+				}
+			});
+   			params.el.focus();
+   			openBasketPopup(false);
+   		},
+	}
+}) 
+ 
+
+ $(function () {
+     $('.bgnBox').click(function () {
+     	 $(this).parent('div').addClass('viewActive2');
+     });
+     $('.bgnBox').keypress(function () {
+     	$(this).parent('div').addClass('viewActive2');
+     });
+     $('.layerBoxInBasket > a').click(function () {
+         $(".viewActive2 .bgnBox").focus();
+     });
+     $('.layerBoxInBasket > a').keypress(function () {
+         $(".viewActive2 .bgnBox").focus();
+     });
+ });
+
+
+ $(document).ready(function () {
+     $(".spmLRbtn a").bind("focus", function () {
+         $('.viewActive2').removeClass('viewActive2');
+     });
+ });
+</script>
+
+	
+		<div class="mobileCard gradationBg1"><a href="/user/mobile/info"><img src="/images/egovframework/scourt/mCard.png"  alt="모바일이용증"/>모바일 이용증</a></div>
+		<div class="topBotBtnBox">
+		    <a href="#" class="topBtn"><img src="/images/egovframework/scourt/topBtn.png" alt="맨위로 이동" /></a>
+		    <a href="#" class="bottomBtn"><img src="/images/egovframework/scourt/bottomBtn.png" alt="맨아래로 이동" /></a>
+		</div>
+	
+	
+
+</body>
+</html>

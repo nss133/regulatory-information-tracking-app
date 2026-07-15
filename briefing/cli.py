@@ -31,6 +31,7 @@ from briefing.ranking import rank_item
 from briefing.relevance import build_score_text, build_scorer
 from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email_html
+from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
 from briefing.sources.registry import SOURCE_SPECS
 from briefing.summarize import should_call_llm, summarize_with_llm
@@ -407,6 +408,11 @@ def cmd_run(args) -> int:
                 print(f"[harvest] 오류 (무시): {e}")
         return 0
 
+    # 발송 전 자가진단 — 경고는 발송을 막지 않고 메일 배너·stderr로만 알림
+    sanity_warnings = run_sanity_checks(conn, pending)
+    for w in sanity_warnings:
+        print(f"[sanity] ⚠ {w}", file=sys.stderr)
+
     subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (신규/변경 {len(pending)}건)"
     html = render_email_html(
         items=pending,
@@ -414,6 +420,7 @@ def cmd_run(args) -> int:
         subject=subject,
         run_date=now_iso(cfg.timezone),
         errors=errors,
+        warnings=sanity_warnings,
     )
     text = _render_text(pending)
 

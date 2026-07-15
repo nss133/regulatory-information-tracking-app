@@ -69,28 +69,7 @@ class ScourtConnector(SourceConnector):
 
     def _parse_press_detail(self, url: str) -> tuple[list[Attachment], str | None]:
         html = self._http.get_text(url)
-        soup = soupify(html)
-
-        # 첨부파일: /sjudge/ 경로의 PDF/HWP/HWPX 링크를 모두 수집
-        attachments: list[Attachment] = []
-        for a in soup.select('a[href*="/sjudge/"]'):
-            href = a.get("href") or ""
-            if not href:
-                continue
-            label = normalize_ws(a.get_text(" ", strip=True)) or "첨부"
-            att_url = href if href.startswith("http") else urljoin(url, href)
-            attachments.append(Attachment(label=label, url=att_url))
-
-        # 본문은 페이지에서 주요 텍스트 블록을 통째로 가져온다.
-        main = (
-            soup.select_one("#content")
-            or soup.select_one("#contents")
-            or soup.select_one(".board_view")
-            or soup.select_one(".news_view")
-            or soup.body
-        )
-        text = normalize_ws(main.get_text(" ", strip=True)) if main else None
-        return attachments, text
+        return parse_press_detail_html(html, url)
 
     def _fetch_major_decisions(self) -> list[FetchedItem]:
         """
@@ -145,24 +124,53 @@ class ScourtConnector(SourceConnector):
 
     def _parse_major_detail(self, url: str) -> tuple[list[Attachment], str | None]:
         html = self._http.get_text(url)
-        soup = soupify(html)
+        return parse_major_detail_html(html, url)
 
-        # 판결 내용 컨테이너만 선택한다. body 폴백을 쓰면 사이트 메뉴·footer의
-        # '개인정보처리방침' 등 상용구가 본문에 섞여 키워드 분류를 오염시킴
-        # (전 판결이 '보험사 관련 HIGH'로 승격되던 2026-07 도배 재발의 원인).
-        main = (
-            soup.select_one(".boardViewArea")
-            or soup.select_one("#start_contents")
-            or soup.select_one("div#contents")
-            or soup.select_one("div#content")
-            or soup.body
-        )
-        text = normalize_ws(main.get_text(" ", strip=True)) if main else None
 
-        # 첨부파일 링크는 javascript:openJudgFilePopup(...) 형태이므로,
-        # 메일에서는 판례 상세 페이지 자체를 '원문 보기' 링크로 제공한다.
-        attachments = [
-            Attachment(label="원문 보기", url=url),
-        ]
-        return attachments, text
+def parse_press_detail_html(html: str, url: str) -> tuple[list[Attachment], str | None]:
+    soup = soupify(html)
+
+    # 첨부파일: /sjudge/ 경로의 PDF/HWP/HWPX 링크를 모두 수집
+    attachments: list[Attachment] = []
+    for a in soup.select('a[href*="/sjudge/"]'):
+        href = a.get("href") or ""
+        if not href:
+            continue
+        label = normalize_ws(a.get_text(" ", strip=True)) or "첨부"
+        att_url = href if href.startswith("http") else urljoin(url, href)
+        attachments.append(Attachment(label=label, url=att_url))
+
+    # 본문은 페이지에서 주요 텍스트 블록을 통째로 가져온다.
+    main = (
+        soup.select_one("#content")
+        or soup.select_one("#contents")
+        or soup.select_one(".board_view")
+        or soup.select_one(".news_view")
+        or soup.body
+    )
+    text = normalize_ws(main.get_text(" ", strip=True)) if main else None
+    return attachments, text
+
+
+def parse_major_detail_html(html: str, url: str) -> tuple[list[Attachment], str | None]:
+    soup = soupify(html)
+
+    # 판결 내용 컨테이너만 선택한다. body 폴백을 쓰면 사이트 메뉴·footer의
+    # '개인정보처리방침' 등 상용구가 본문에 섞여 키워드 분류를 오염시킴
+    # (전 판결이 '보험사 관련 HIGH'로 승격되던 2026-07 도배 재발의 원인).
+    main = (
+        soup.select_one(".boardViewArea")
+        or soup.select_one("#start_contents")
+        or soup.select_one("div#contents")
+        or soup.select_one("div#content")
+        or soup.body
+    )
+    text = normalize_ws(main.get_text(" ", strip=True)) if main else None
+
+    # 첨부파일 링크는 javascript:openJudgFilePopup(...) 형태이므로,
+    # 메일에서는 판례 상세 페이지 자체를 '원문 보기' 링크로 제공한다.
+    attachments = [
+        Attachment(label="원문 보기", url=url),
+    ]
+    return attachments, text
 

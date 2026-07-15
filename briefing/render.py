@@ -79,6 +79,7 @@ def render_email_html(
     subject: str,
     run_date: str,
     errors: list[str] | None = None,
+    warnings: list[str] | None = None,
 ) -> str:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -362,7 +363,10 @@ def render_email_html(
         RenderSection(label="LOW", items=by_importance.get("low", [])),
     ]
 
-    html = tpl.render(subject=subject, run_date=run_date, sections=sections, errors=(errors or []))
+    html = tpl.render(
+        subject=subject, run_date=run_date, sections=sections,
+        errors=(errors or []), warnings=(warnings or []),
+    )
     try:
         from premailer import transform  # type: ignore
         html = transform(html, preserve_internal_links=True, remove_classes=False)

@@ -118,6 +118,17 @@
         margin-bottom: 14px;
       }
 
+      /* ── 자가진단 경고 ── */
+      .warn-note {
+        font-size: 12px;
+        color: #92400e;
+        background-color: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 3px;
+        padding: 6px 10px;
+        margin-bottom: 14px;
+      }
+
       /* ── 푸터 ── */
       .footer { font-size: 12px; color: #bbb; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }
     </style>
@@ -130,6 +141,12 @@
 
     {% if errors and errors|length > 0 %}
       <div class="error-note">⚠ 수집 오류 {{ errors|length }}건 — 일부 소스가 누락되었을 수 있습니다.</div>
+    {% endif %}
+
+    {% if warnings and warnings|length > 0 %}
+      {% for w in warnings %}
+        <div class="warn-note">⚠ 자가진단: {{ w }}</div>
+      {% endfor %}
     {% endif %}
 
     {% for sec in sections %}
