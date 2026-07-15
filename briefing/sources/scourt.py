@@ -147,8 +147,16 @@ class ScourtConnector(SourceConnector):
         html = self._http.get_text(url)
         soup = soupify(html)
 
-        # 판례 상세 페이지 상단의 긴 사건 개요 텍스트를 본문으로 사용
-        main = soup.select_one("div#contents") or soup.select_one("div#content") or soup.body
+        # 판결 내용 컨테이너만 선택한다. body 폴백을 쓰면 사이트 메뉴·footer의
+        # '개인정보처리방침' 등 상용구가 본문에 섞여 키워드 분류를 오염시킴
+        # (전 판결이 '보험사 관련 HIGH'로 승격되던 2026-07 도배 재발의 원인).
+        main = (
+            soup.select_one(".boardViewArea")
+            or soup.select_one("#start_contents")
+            or soup.select_one("div#contents")
+            or soup.select_one("div#content")
+            or soup.body
+        )
         text = normalize_ws(main.get_text(" ", strip=True)) if main else None
 
         # 첨부파일 링크는 javascript:openJudgFilePopup(...) 형태이므로,
