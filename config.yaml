@@ -295,3 +295,10 @@ archive:
   body_harvest_limit: 100         # 1회 실행당 body 수집 최대 건수
   attachment_harvest_limit: 200   # 1회 실행당 첨부파일 추출 최대 건수
 
+
+# 판단자산(J-ID) 영향 감시 — 규제동향이 판단 근거 법령·판례를 건드리면
+# 메일 상단 배너 + vault 감시 로그에 재검토 후보로 표시
+jid_watch:
+  enabled: true
+  judgments_dir: "/Users/nsss/obsidian/nss/05. 지식베이스/법무판단/판단"
+  log_note: "/Users/nsss/obsidian/nss/05. 지식베이스/법무판단/_규제동향_영향감시.md"

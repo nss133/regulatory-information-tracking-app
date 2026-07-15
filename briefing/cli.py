@@ -29,6 +29,11 @@ from briefing.extract import extract_main_text, extract_page_content
 from briefing.http import HttpClient
 from briefing.ranking import rank_item
 from briefing.relevance import build_score_text, build_scorer
+from briefing.jid_watch import (
+    append_log as append_jid_log,
+    build_citation_index,
+    find_impacts,
+)
 from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email_html
 from briefing.sanity import run_sanity_checks
@@ -413,6 +418,24 @@ def cmd_run(args) -> int:
     for w in sanity_warnings:
         print(f"[sanity] ⚠ {w}", file=sys.stderr)
 
+    # 판단자산(J-ID) 영향 감시 — 실패해도 발송에 영향 없음
+    jid_alerts = []
+    if cfg.jid_watch.enabled and cfg.jid_watch.judgments_dir:
+        try:
+            jid_index = build_citation_index(cfg.jid_watch.judgments_dir)
+            jid_alerts = find_impacts(jid_index, pending)
+            if jid_alerts and cfg.jid_watch.log_note:
+                append_jid_log(
+                    cfg.jid_watch.log_note, jid_alerts,
+                    run_date=now_iso(cfg.timezone)[:10],
+                )
+            print(
+                f"[jid-watch] 판단 {jid_index.n_files}건 인덱싱, "
+                f"영향 항목 {len(jid_alerts)}건"
+            )
+        except Exception as e:
+            print(f"[jid-watch] 오류 (무시): {e}", file=sys.stderr)
+
     subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (신규/변경 {len(pending)}건)"
     html = render_email_html(
         items=pending,
@@ -421,6 +444,7 @@ def cmd_run(args) -> int:
         run_date=now_iso(cfg.timezone),
         errors=errors,
         warnings=sanity_warnings,
+        jid_alerts=jid_alerts,
     )
     text = _render_text(pending)
 

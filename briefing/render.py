@@ -80,6 +80,7 @@ def render_email_html(
     run_date: str,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
+    jid_alerts: list | None = None,
 ) -> str:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -366,6 +367,7 @@ def render_email_html(
     html = tpl.render(
         subject=subject, run_date=run_date, sections=sections,
         errors=(errors or []), warnings=(warnings or []),
+        jid_alerts=(jid_alerts or []),
     )
     try:
         from premailer import transform  # type: ignore

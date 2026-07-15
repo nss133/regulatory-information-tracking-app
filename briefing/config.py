@@ -143,6 +143,14 @@ class ArchiveConfig:
 
 
 @dataclass(frozen=True)
+class JidWatchConfig:
+    """판단자산(J-ID) 영향 감시. 규제동향이 판단 근거를 건드리면 메일·vault에 표시."""
+    enabled: bool
+    judgments_dir: str   # vault 판단 파일(J-*.md) 디렉터리
+    log_note: str        # 감시 로그 노트(.md) 경로 — append 전용
+
+
+@dataclass(frozen=True)
 class AppConfig:
     timezone: str
     storage: StorageConfig
@@ -154,6 +162,7 @@ class AppConfig:
     llm: LlmConfig
     archive: ArchiveConfig
     relevance: RelevanceConfig
+    jid_watch: JidWatchConfig
 
 
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -192,6 +201,7 @@ def load_config(path: str | Path) -> AppConfig:
     llm_raw = _get(raw, "llm")
     archive_raw = raw.get("archive", {})
     relevance_raw = raw.get("relevance", {})
+    jid_watch_raw = raw.get("jid_watch", {})
 
     _default_kordoc = (
         "/Users/nsss/.claude/plugins/marketplaces/"
@@ -265,6 +275,11 @@ def load_config(path: str | Path) -> AppConfig:
                 str(k): int(v)
                 for k, v in (relevance_raw.get("term_weights") or {}).items()
             },
+        ),
+        jid_watch=JidWatchConfig(
+            enabled=bool(_get(jid_watch_raw, "enabled", False)),
+            judgments_dir=str(_get(jid_watch_raw, "judgments_dir", "")),
+            log_note=str(_get(jid_watch_raw, "log_note", "")),
         ),
     )
 
