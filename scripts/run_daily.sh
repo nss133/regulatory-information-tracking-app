@@ -65,6 +65,17 @@ fi
 
 python -m briefing run --config "$CONFIG"
 
+# 주 1회(월요일) DB 스냅샷 백업 — DB 본체는 iCloud 밖(Application Support)에 있으므로
+# 재해 대비 사본만 iCloud 프로젝트 폴더에 남긴다. sqlite3 .backup은 온라인 백업이라 안전.
+if [[ "$(date +%u)" == "1" ]]; then
+  mkdir -p data_backup
+  if sqlite3 "data/briefing.sqlite3" ".backup 'data_backup/briefing_weekly.sqlite3'"; then
+    echo "INFO: 주간 DB 백업 완료 → data_backup/briefing_weekly.sqlite3" >&2
+  else
+    echo "WARN: 주간 DB 백업 실패(무시하고 계속)" >&2
+  fi
+fi
+
 # 법원 판결 인덱스 자동 갱신 (수집 직후 — 신규 판결을 vault 판례(근거) 인덱스에 반영).
 # 실패해도 수집 결과는 유지하도록 non-fatal 처리.
 if [[ -f "build_court_index.py" ]]; then
