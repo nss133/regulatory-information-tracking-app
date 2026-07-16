@@ -1,7 +1,8 @@
 """발송 전 자가진단 — 조용한 고장(silent failure) 감지.
 
 파이프라인이 죽지 않고 틀린 결과를 내는 유형의 고장을 발송 직전에 잡는다.
-경고는 발송을 막지 않고(수집 오류와 달리) 메일 상단 배너와 stderr로만 알린다.
+경고는 발송을 막지 않고(수집 오류와 달리) stderr와 vault 자가진단 로그로만 알린다.
+메일 본문에는 싣지 않는다 — 운영 정보라 수신자 전체에게 보일 이유가 없음.
 
 배경: 2026-06~07 대법원 판결 본문에 사이트 상용구가 섞여 전 판결이
 '보험사 관련 HIGH'로 승격되는 도배가 한 달간 무증상 재발했던 사례.
@@ -9,6 +10,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 # 페이지 본문이 아니라 사이트 껍데기(메뉴·footer)가 추출됐음을 나타내는 마커.
 # '개인정보처리방침' 같은 단어는 보도자료 본문에 정당하게 등장할 수 있어 쓰지 않고,
@@ -68,3 +70,22 @@ def run_sanity_checks(conn: sqlite3.Connection, pending) -> list[str]:
     warnings.extend(_check_chrome_pollution(pending))
     warnings.extend(_check_high_surge(conn, pending))
     return warnings
+
+
+_LOG_HEADER = """# 브리핑 자가진단 로그
+
+> 발송 전 자가진단 경고 기록 — briefing이 자동 생성함(append 전용).
+> 경고는 발송을 막지 않음. 점검 후 처리한 항목은 취소선 처리 권장.
+
+"""
+
+
+def append_log(log_note: str | Path, warnings: list[str], run_date: str) -> None:
+    p = Path(log_note)
+    if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(_LOG_HEADER)
+    with p.open("a") as f:
+        f.write(f"\n## {run_date}\n\n")
+        for w in warnings:
+            f.write(f"- ⚠ {w}\n")

@@ -302,3 +302,6 @@ jid_watch:
   enabled: true
   judgments_dir: "/Users/nsss/obsidian/nss/05. 지식베이스/법무판단/판단"
   log_note: "/Users/nsss/obsidian/nss/05. 지식베이스/법무판단/_규제동향_영향감시.md"
+
+sanity:
+  log_note: "/Users/nsss/obsidian/nss/05. 지식베이스/법무판단/_브리핑_자가진단.md"

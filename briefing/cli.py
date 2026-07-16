@@ -36,6 +36,7 @@ from briefing.jid_watch import (
 )
 from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email_html
+from briefing.sanity import append_log as append_sanity_log
 from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
 from briefing.sources.registry import SOURCE_SPECS
@@ -188,7 +189,6 @@ def cmd_preview(args) -> int:
         template_dir=Path("templates"),
         subject=subject,
         run_date=now_iso(cfg.timezone),
-        errors=errors,
     )
     out_path = Path(args.out)
     out_path.write_text(html, encoding="utf-8")
@@ -413,12 +413,20 @@ def cmd_run(args) -> int:
                 print(f"[harvest] 오류 (무시): {e}")
         return 0
 
-    # 발송 전 자가진단 — 경고는 발송을 막지 않고 메일 배너·stderr로만 알림
+    # 발송 전 자가진단 — 경고는 발송을 막지 않음. 메일에는 싣지 않고 stderr·vault 로그로만 남김
     sanity_warnings = run_sanity_checks(conn, pending)
     for w in sanity_warnings:
         print(f"[sanity] ⚠ {w}", file=sys.stderr)
+    if sanity_warnings and cfg.sanity.log_note:
+        try:
+            append_sanity_log(
+                cfg.sanity.log_note, sanity_warnings,
+                run_date=now_iso(cfg.timezone)[:10],
+            )
+        except Exception as e:
+            print(f"[sanity] 로그 기록 오류 (무시): {e}", file=sys.stderr)
 
-    # 판단자산(J-ID) 영향 감시 — 실패해도 발송에 영향 없음
+    # 판단자산(J-ID) 영향 감시 — vault 로그에만 기록, 메일에는 싣지 않음. 실패해도 발송에 영향 없음
     jid_alerts = []
     if cfg.jid_watch.enabled and cfg.jid_watch.judgments_dir:
         try:
@@ -442,9 +450,6 @@ def cmd_run(args) -> int:
         template_dir=Path("templates"),
         subject=subject,
         run_date=now_iso(cfg.timezone),
-        errors=errors,
-        warnings=sanity_warnings,
-        jid_alerts=jid_alerts,
     )
     text = _render_text(pending)
 
@@ -633,7 +638,6 @@ def cmd_resend_last(args) -> int:
         template_dir=Path("templates"),
         subject=subject,
         run_date=now_iso(cfg.timezone),
-        errors=[],
     )
     text = _render_text(batch)
 

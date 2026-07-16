@@ -144,10 +144,16 @@ class ArchiveConfig:
 
 @dataclass(frozen=True)
 class JidWatchConfig:
-    """판단자산(J-ID) 영향 감시. 규제동향이 판단 근거를 건드리면 메일·vault에 표시."""
+    """판단자산(J-ID) 영향 감시. 규제동향이 판단 근거를 건드리면 vault 로그에 기록."""
     enabled: bool
     judgments_dir: str   # vault 판단 파일(J-*.md) 디렉터리
     log_note: str        # 감시 로그 노트(.md) 경로 — append 전용
+
+
+@dataclass(frozen=True)
+class SanityConfig:
+    """발송 전 자가진단. 경고는 메일에 싣지 않고 stderr·vault 로그에만 남김."""
+    log_note: str        # 자가진단 로그 노트(.md) 경로 — append 전용, 빈 값이면 stderr만
 
 
 @dataclass(frozen=True)
@@ -163,6 +169,7 @@ class AppConfig:
     archive: ArchiveConfig
     relevance: RelevanceConfig
     jid_watch: JidWatchConfig
+    sanity: SanityConfig
 
 
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -280,6 +287,9 @@ def load_config(path: str | Path) -> AppConfig:
             enabled=bool(_get(jid_watch_raw, "enabled", False)),
             judgments_dir=str(_get(jid_watch_raw, "judgments_dir", "")),
             log_note=str(_get(jid_watch_raw, "log_note", "")),
+        ),
+        sanity=SanityConfig(
+            log_note=str(_get(raw.get("sanity", {}), "log_note", "")),
         ),
     )
 

@@ -112,40 +112,6 @@
       .child-item:last-child { border-bottom: none; }
 
       /* ── 오류 ── */
-      .error-note {
-        font-size: 12px;
-        color: #c00;
-        margin-bottom: 14px;
-      }
-
-      /* ── 자가진단 경고 ── */
-      .warn-note {
-        font-size: 12px;
-        color: #92400e;
-        background-color: #fef3c7;
-        border: 1px solid #f59e0b;
-        border-radius: 3px;
-        padding: 6px 10px;
-        margin-bottom: 14px;
-      }
-
-      /* ── 판단자산 영향 감시 ── */
-      .jid-note {
-        font-size: 12px;
-        color: #1e3a8a;
-        background-color: #eff6ff;
-        border: 1px solid #3b82f6;
-        border-radius: 3px;
-        padding: 8px 12px;
-        margin-bottom: 14px;
-      }
-      .jid-note-title { font-weight: 700; margin-bottom: 6px; }
-      .jid-item { margin-bottom: 6px; }
-      .jid-item:last-child { margin-bottom: 0; }
-      .jid-item a { color: #1e3a8a; }
-      .jid-lines { margin: 2px 0 0 0; padding-left: 18px; }
-      .jid-lines li { margin: 1px 0; }
-
       /* ── 푸터 ── */
       .footer { font-size: 12px; color: #bbb; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }
     </style>
@@ -155,30 +121,6 @@
     <div class="top-meta">
       {{ run_date[:10] }} &nbsp;·&nbsp; Legal &amp; Compliance Signal &nbsp;·&nbsp; 신규/변경 항목만 포함
     </div>
-
-    {% if errors and errors|length > 0 %}
-      <div class="error-note">⚠ 수집 오류 {{ errors|length }}건 — 일부 소스가 누락되었을 수 있습니다.</div>
-    {% endif %}
-
-    {% if warnings and warnings|length > 0 %}
-      {% for w in warnings %}
-        <div class="warn-note">⚠ 자가진단: {{ w }}</div>
-      {% endfor %}
-    {% endif %}
-
-    {% if jid_alerts and jid_alerts|length > 0 %}
-      <div class="jid-note">
-        <div class="jid-note-title">⚖ 판단자산 영향 감시 — 오늘 항목 {{ jid_alerts|length }}건이 기존 판단(J-ID)의 근거를 건드림</div>
-        {% for a in jid_alerts %}
-          <div class="jid-item">
-            <a href="{{ a.item_url }}">{{ a.item_title }}</a>
-            <ul class="jid-lines">
-              {% for line in a.lines %}<li>{{ line }}</li>{% endfor %}
-            </ul>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
 
     {% for sec in sections %}
       {% if sec.items|length > 0 %}
