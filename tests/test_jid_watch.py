@@ -31,6 +31,33 @@ id: J-2026-0002
 본문
 """
 
+JID_C = """---
+id: J-2026-0003
+쟁점: 개인정보 정의
+근거:
+  - 개인정보 보호법 §2
+---
+본문
+"""
+
+JID_D = """---
+id: J-2026-0004
+쟁점: 목적 외 이용
+근거:
+  - 개인정보 보호법 §19
+---
+본문
+"""
+
+JID_E = """---
+id: J-2026-0005
+쟁점: 주요사항보고
+근거:
+  - 자본시장과 금융투자업에 관한 법률 시행령 §171
+---
+본문
+"""
+
 
 def _item(title, category="press", raw_text="", url="http://example.com"):
     return SimpleNamespace(id="i1", title=title, category=category, raw_text=raw_text, url=url)
@@ -86,6 +113,43 @@ class TestJidWatch(unittest.TestCase):
         item = _item("개인정보 보호법 홍보 캠페인 발대식", category="press",
                      raw_text="개인정보 보호법 안내 행사")
         self.assertEqual(find_impacts(self.idx, [item]), [])
+
+    def test_article_not_cross_paired_between_laws(self):
+        # 다른 법령의 조문번호가 교차 결합되지 않아야 함 — 판례 요지 묶음에서
+        # 특별검사법 제2조가 개인정보보호법 §2로 오귀속된 오탐 사례(2026-07-22)
+        d = Path(self.tmp.name)
+        (d / "J-2026-0003_개인정보정의.md").write_text(JID_C)
+        (d / "J-2026-0004_목적외이용.md").write_text(JID_D)
+        idx = build_citation_index(d)
+        item = _item(
+            "대법원 2026. 7. 16. 선고 중요판결 요지", category="case_law",
+            raw_text=(
+                "개인정보보호법위반 파기환송. "
+                "구 「개인정보 보호법」 제19조에서 정하고 있는 제3자 제공의 의미. "
+                + "다른 사건 설명이 길게 이어짐. " * 20
+                + "특별검사법 제2조 제1항 제1호부터 제15호까지 규정된 의혹 사건"
+            ),
+        )
+        alerts = find_impacts(idx, [item])
+        self.assertEqual(len(alerts), 1)
+        joined = "\n".join(alerts[0].lines)
+        self.assertIn("§19 일치", joined)
+        self.assertIn("J-2026-0004", joined)
+        self.assertNotIn("§2 일치", joined)
+
+    def test_decree_alias_merges(self):
+        # "자본시장법 시행령" ↔ "자본시장과 금융투자업에 관한 법률 시행령" 수렴
+        d = Path(self.tmp.name)
+        (d / "J-2026-0005_주요사항보고.md").write_text(JID_E)
+        idx = build_citation_index(d)
+        self.assertIn("자본시장법시행령", idx.law_to_jids)
+        item = _item(
+            "자본시장법 시행령 개정", category="legislation",
+            raw_text="「자본시장법 시행령」 개정안이 국무회의에서 의결되었다.",
+        )
+        alerts = find_impacts(idx, [item])
+        self.assertEqual(len(alerts), 1)
+        self.assertTrue(any("J-2026-0005" in l for l in alerts[0].lines))
 
     def test_append_log_creates_and_appends(self):
         item = _item("보험업감독규정 개정", category="admin_notice", raw_text="제5-7조")

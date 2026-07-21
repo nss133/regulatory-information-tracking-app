@@ -28,7 +28,7 @@ LAW_SUMMARY_THRESHOLD = 10
 MAX_LISTED_JIDS = 5
 
 # 약칭 ↔ 정식명 (공백 제거 후 비교). key=대표명, values=변형들
-_LAW_ALIASES: dict[str, list[str]] = {
+_BASE_LAW_ALIASES: dict[str, list[str]] = {
     "자본시장법": ["자본시장과금융투자업에관한법률"],
     "공정거래법": ["독점규제및공정거래에관한법률"],
     "금융소비자보호법": ["금융소비자보호에관한법률", "금소법"],
@@ -37,6 +37,14 @@ _LAW_ALIASES: dict[str, list[str]] = {
     "퇴직급여법": ["근로자퇴직급여보장법", "근로자퇴직급여보장법"],
     "노동조합법": ["노동조합및노동관계조정법"],
 }
+
+# 시행령·시행규칙 변형 자동 파생 — "자본시장법 시행령" ↔ "자본시장과 금융투자업에
+# 관한 법률 시행령"이 별개 키로 갈라지면 매칭이 누락됨(2026-07-22 검증에서 확인)
+_LAW_ALIASES: dict[str, list[str]] = {}
+for _canon, _variants in _BASE_LAW_ALIASES.items():
+    _LAW_ALIASES[_canon] = _variants
+    for _sfx in ("시행령", "시행규칙"):
+        _LAW_ALIASES[f"{_canon} {_sfx}"] = [f"{v} {_sfx}" for v in _variants]
 
 # 법령명으로 인정하는 접미사 (근거 항목에서 가이드·보도자료 등을 걸러냄)
 _LAW_SUFFIXES = ("법", "법률", "시행령", "시행규칙", "규정", "규칙", "고시", "감독규정")
@@ -175,10 +183,21 @@ class ImpactAlert:
     vault_lines: list[str]  # vault 로그용([[위키링크]])
 
 
-def _extract_text_articles(text: str) -> set[str]:
-    out = set()
-    for num, ui in _TEXT_ARTICLE_RE.findall(text):
-        out.add(f"{num}의{ui}" if ui else num)
+# 법령명 등장 위치 뒤 이 거리(정규화 문자 수) 안의 "제N조"만 그 법령의 조문으로 인정.
+# 항목 전체에서 조문을 모으면 다른 법령의 조문이 교차 결합됨 — 판례 요지 묶음에서
+# 특별검사법 제2조가 개인정보보호법 §2로 오귀속된 사례(2026-07-22 검증).
+# 창을 좁게 잡아 놓친 조문은 법령 단위 요약으로 폴백되므로 과소매칭 쪽이 안전함.
+_ARTICLE_WINDOW = 100
+
+
+def _articles_near(norm_text: str, variant: str) -> set[str]:
+    out: set[str] = set()
+    start = norm_text.find(variant)
+    while start >= 0:
+        end = start + len(variant)
+        for num, ui in _TEXT_ARTICLE_RE.findall(norm_text[end : end + _ARTICLE_WINDOW]):
+            out.add(f"{num}의{ui}" if ui else num)
+        start = norm_text.find(variant, end)
     return out
 
 
@@ -194,21 +213,23 @@ def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
 
         text = f"{title}\n{it.raw_text or ''}"
         norm_text = _norm(text)
-        item_articles = _extract_text_articles(text)
 
         lines: list[str] = []
         vault_lines: list[str] = []
 
-        # ── 법령 매치 ──
-        matched_canons: set[str] = set()
+        # ── 법령 매치 (조문은 법령명 근접 범위에서만 수집) ──
+        matched_canons: dict[str, set[str]] = {}
         for variant, canon in idx.law_lookup.items():
             if variant in norm_text:
-                matched_canons.add(canon)
+                matched_canons.setdefault(canon, set()).update(
+                    _articles_near(norm_text, variant)
+                )
         for canon in sorted(matched_canons):
             refs = idx.law_to_jids.get(canon, {})
             if not refs:
                 continue
             display = idx.law_display.get(canon, canon)
+            item_articles = matched_canons[canon]
             hit_articles_by_jid = {
                 jid: ref.articles & item_articles
                 for jid, ref in refs.items()
