@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ class StoredItem:
     raw_text: Optional[str] = None
     relevance_score: Optional[int] = None
     relevance_evidence: Optional[str] = None
+    deadlines_json: Optional[str] = None
 
 
 def connect(sqlite_path: str) -> sqlite3.Connection:
@@ -72,12 +74,49 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_last_seen ON items(last_seen_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_items_last_sent ON items(last_sent_at)")
 
+    # 소스가 정상 응답했지만 게시물이 0건인 경우와 실제 수집 실패를 구분한다.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS source_health (
+          source TEXT PRIMARY KEY,
+          last_attempt_at TEXT NOT NULL,
+          last_success_at TEXT,
+          last_item_count INTEGER NOT NULL DEFAULT 0,
+          last_duration_seconds REAL,
+          last_error TEXT,
+          consecutive_failures INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    )
+    # 기능 도입 전부터 데이터가 있던 소스는 마지막 관측 시각으로 초기 상태를 채운다.
+    # 이후 실제 수집 시 record_source_fetches가 정확한 실행 결과로 갱신한다.
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO source_health (
+          source, last_attempt_at, last_success_at, last_item_count,
+          last_duration_seconds, last_error, consecutive_failures
+        )
+        SELECT i.source, MAX(i.last_seen_at), MAX(i.last_seen_at), COUNT(*),
+               NULL, NULL, 0
+        FROM items i
+        GROUP BY i.source
+        """
+    )
+
     # 미래에셋생명 관련성(relevance) shadow 컬럼 — 노출(등급·정렬) 미반영, 기록만.
     cols = {r[1] for r in conn.execute("PRAGMA table_info(items)")}
     if "relevance_score" not in cols:
         conn.execute("ALTER TABLE items ADD COLUMN relevance_score INTEGER")
     if "relevance_evidence" not in cols:
         conn.execute("ALTER TABLE items ADD COLUMN relevance_evidence TEXT")
+    # 메일 편집 정책상 제외된 항목은 '발송'과 구분해 기록한다. 같은 content_hash는
+    # 다음 실행에서 다시 후보가 되지 않지만, 제목/첨부가 바뀌면 자동으로 재평가된다.
+    if "suppressed_hash" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN suppressed_hash TEXT")
+    if "last_suppressed_at" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN last_suppressed_at TEXT")
+    if "deadlines_json" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN deadlines_json TEXT")
 
     # 첨부파일 텍스트 아카이브
     conn.execute(
@@ -100,6 +139,77 @@ def init_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_content_item ON item_content(item_id)"
+    )
+
+    # 한 번의 자동 실행·메일 발송을 배치 단위로 추적한다. SMTP 접수와 items의
+    # 발송 표시 사이에서 프로세스가 중단돼도 모호한 상태를 보존해 중복을 막는다.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS delivery_runs (
+          run_id TEXT PRIMARY KEY,
+          run_date TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          completed_at TEXT,
+          status TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          fetched_count INTEGER NOT NULL DEFAULT 0,
+          candidate_count INTEGER NOT NULL DEFAULT 0,
+          visible_count INTEGER NOT NULL DEFAULT 0,
+          suppressed_count INTEGER NOT NULL DEFAULT 0,
+          error_count INTEGER NOT NULL DEFAULT 0,
+          subject TEXT,
+          recipients_json TEXT,
+          message_id TEXT,
+          delivery_fingerprint TEXT,
+          archive_path TEXT,
+          duration_seconds REAL,
+          error TEXT
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_delivery_runs_started "
+        "ON delivery_runs(started_at)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_delivery_runs_fingerprint "
+        "ON delivery_runs(delivery_fingerprint, status)"
+    )
+    delivery_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(delivery_runs)")
+    }
+    if "duration_seconds" not in delivery_cols:
+        conn.execute("ALTER TABLE delivery_runs ADD COLUMN duration_seconds REAL")
+    # 기능 도입 전 마지막 발송은 확인 가능한 시각·건수만 1회 이관한다.
+    # 당시 Message-ID와 HTML은 저장되지 않았으므로 추정값을 만들지 않는다.
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO delivery_runs (
+          run_id, run_date, started_at, completed_at, status, stage,
+          candidate_count, visible_count
+        )
+        SELECT 'legacy-' || REPLACE(REPLACE(MAX(last_sent_at), ':', ''), '+', '_'),
+               substr(MAX(last_sent_at), 1, 10), MAX(last_sent_at), MAX(last_sent_at),
+               'completed', 'legacy_import',
+               COUNT(*), COUNT(*)
+        FROM items
+        WHERE last_sent_at = (SELECT MAX(last_sent_at) FROM items)
+          AND NOT EXISTS (SELECT 1 FROM delivery_runs)
+        HAVING MAX(last_sent_at) IS NOT NULL
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS delivery_watch_alerts (
+          alert_date TEXT PRIMARY KEY,
+          detected_at TEXT NOT NULL,
+          reason_code TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          run_id TEXT,
+          alerted_at TEXT NOT NULL,
+          message_id TEXT
+        )
+        """
     )
 
     # FTS5 전문검색 인덱스 (trigram: 한국어 부분문자열 검색)
@@ -129,6 +239,154 @@ def init_db(conn: sqlite3.Connection) -> None:
             """
         )
 
+    conn.commit()
+
+
+class AmbiguousDeliveryError(RuntimeError):
+    """동일 내용의 과거 SMTP 처리 결과가 불명확해 자동 재발송을 막았음."""
+
+
+def create_delivery_run(conn: sqlite3.Connection, *, tz_name: str) -> str:
+    run_id = uuid.uuid4().hex
+    now = now_iso(tz_name)
+    conn.execute(
+        """
+        INSERT INTO delivery_runs (
+          run_id, run_date, started_at, status, stage
+        ) VALUES (?, ?, ?, 'running', 'started')
+        """,
+        (run_id, now[:10], now),
+    )
+    conn.commit()
+    return run_id
+
+
+def update_delivery_run(
+    conn: sqlite3.Connection,
+    run_id: str,
+    *,
+    status: str | None = None,
+    stage: str | None = None,
+    completed: bool = False,
+    tz_name: str | None = None,
+    **fields,
+) -> None:
+    allowed = {
+        "fetched_count", "candidate_count", "visible_count", "suppressed_count",
+        "error_count", "subject", "recipients_json", "message_id",
+        "delivery_fingerprint", "archive_path", "error",
+        "duration_seconds",
+    }
+    invalid = set(fields) - allowed
+    if invalid:
+        raise ValueError(f"허용되지 않은 delivery_runs 필드: {sorted(invalid)}")
+    values = dict(fields)
+    if status is not None:
+        values["status"] = status
+    if stage is not None:
+        values["stage"] = stage
+    if completed:
+        if not tz_name:
+            raise ValueError("completed=True이면 tz_name이 필요합니다.")
+        values["completed_at"] = now_iso(tz_name)
+    if not values:
+        return
+    assignments = ", ".join(f"{key} = :{key}" for key in values)
+    values["run_id"] = run_id
+    conn.execute(
+        f"UPDATE delivery_runs SET {assignments} WHERE run_id = :run_id", values
+    )
+    conn.commit()
+
+
+def prepare_delivery_attempt(
+    conn: sqlite3.Connection,
+    run_id: str,
+    *,
+    fingerprint: str,
+    message_id: str,
+) -> None:
+    """SMTP 직전 상태를 원자적으로 기록하고 동일한 모호 배치를 차단한다."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        prior = conn.execute(
+            """
+            SELECT run_id, started_at, status
+            FROM delivery_runs
+            WHERE delivery_fingerprint = ?
+              AND run_id != ?
+              AND status IN ('sending', 'smtp_accepted', 'ambiguous')
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            (fingerprint, run_id),
+        ).fetchone()
+        if prior:
+            raise AmbiguousDeliveryError(
+                "동일 브리핑의 과거 발송 결과를 확인해야 합니다: "
+                f"run_id={prior['run_id']}, status={prior['status']}, "
+                f"started_at={prior['started_at']}"
+            )
+        conn.execute(
+            """
+            UPDATE delivery_runs
+            SET status = 'sending', stage = 'smtp',
+                delivery_fingerprint = ?, message_id = ?
+            WHERE run_id = ?
+            """,
+            (fingerprint, message_id, run_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def select_recent_delivery_runs(
+    conn: sqlite3.Connection, *, limit: int = 10
+) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT run_id, run_date, started_at, completed_at, status, stage,
+               fetched_count, candidate_count, visible_count, suppressed_count,
+               error_count, subject, message_id, archive_path,
+               duration_seconds, error
+        FROM delivery_runs
+        ORDER BY started_at DESC
+        LIMIT ?
+        """,
+        (max(1, min(limit, 100)),),
+    ).fetchall()
+
+
+def has_delivery_watch_alert(conn: sqlite3.Connection, alert_date: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM delivery_watch_alerts WHERE alert_date = ?", (alert_date,)
+    ).fetchone() is not None
+
+
+def record_delivery_watch_alert(
+    conn: sqlite3.Connection,
+    *,
+    alert_date: str,
+    detected_at: str,
+    reason_code: str,
+    reason: str,
+    run_id: str | None,
+    message_id: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO delivery_watch_alerts (
+          alert_date, detected_at, reason_code, reason, run_id,
+          alerted_at, message_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            alert_date, detected_at, reason_code, reason, run_id,
+            detected_at, message_id,
+        ),
+    )
     conn.commit()
 
 
@@ -192,7 +450,8 @@ def upsert_items(conn: sqlite3.Connection, items: Iterable[FetchedItem], *, tz_n
 def select_pending_for_email(
     conn: sqlite3.Connection, *, max_days_since_published: int = 7
 ) -> list[StoredItem]:
-    # last_sent_at이 없거나, sent_hash != content_hash(변경)면 발송 대상
+    # 현재 버전(content_hash)이 발송되거나 편집 정책상 제외된 적이 없으면 후보.
+    # 이미 제외된 항목도 제목/첨부가 바뀌면 hash가 달라져 다시 평가된다.
     # published_at이 N일 이내인 항목만 포함 (오래된 자료 제외). NULL은 포함
     rows = conn.execute(
         """
@@ -202,10 +461,10 @@ def select_pending_for_email(
           importance, importance_reason, summary,
           last_changed_at, last_sent_at, sent_hash, raw_text,
           relevance_score, relevance_evidence
+          , deadlines_json
         FROM items
-        WHERE (last_sent_at IS NULL
-           OR sent_hash IS NULL
-           OR sent_hash != content_hash)
+        WHERE content_hash != COALESCE(sent_hash, '')
+          AND content_hash != COALESCE(suppressed_hash, '')
           AND (published_at IS NULL
                OR published_at >= date('now', :date_modifier))
           AND title NOT LIKE '%은행업감독규정%'
@@ -262,6 +521,7 @@ def select_pending_for_email(
                 raw_text=r["raw_text"],
                 relevance_score=r["relevance_score"],
                 relevance_evidence=r["relevance_evidence"],
+                deadlines_json=r["deadlines_json"],
             )
         )
     return out
@@ -281,6 +541,7 @@ def select_last_sent_batch(conn: sqlite3.Connection) -> list[StoredItem]:
           importance, importance_reason, summary,
           last_changed_at, last_sent_at, sent_hash, raw_text,
           relevance_score, relevance_evidence
+          , deadlines_json
         FROM items
         WHERE last_sent_at = :last_sent_at
           AND title NOT LIKE '%은행업감독규정%'
@@ -336,6 +597,7 @@ def select_last_sent_batch(conn: sqlite3.Connection) -> list[StoredItem]:
                 raw_text=r["raw_text"],
                 relevance_score=r["relevance_score"],
                 relevance_evidence=r["relevance_evidence"],
+                deadlines_json=r["deadlines_json"],
             )
         )
     return out
@@ -348,13 +610,15 @@ def update_item_enrichment(
     importance: Optional[str],
     importance_reason: Optional[str],
     summary: Optional[str],
+    deadlines_json: Optional[str] = None,
 ) -> None:
     conn.execute(
         """
         UPDATE items
         SET importance = :importance,
             importance_reason = :importance_reason,
-            summary = :summary
+            summary = :summary,
+            deadlines_json = :deadlines_json
         WHERE id = :id
         """,
         {
@@ -362,6 +626,7 @@ def update_item_enrichment(
             "importance": importance,
             "importance_reason": importance_reason,
             "summary": summary,
+            "deadlines_json": deadlines_json,
         },
     )
     conn.commit()
@@ -392,7 +657,9 @@ def mark_sent(conn: sqlite3.Connection, item_ids: Iterable[str], *, tz_name: str
         """
         UPDATE items
         SET last_sent_at = :now,
-            sent_hash = content_hash
+            sent_hash = content_hash,
+            last_suppressed_at = NULL,
+            suppressed_hash = NULL
         WHERE id = :id
         """,
         [{"id": i, "now": now} for i in item_ids],
@@ -400,10 +667,70 @@ def mark_sent(conn: sqlite3.Connection, item_ids: Iterable[str], *, tz_name: str
     conn.commit()
 
 
+def mark_suppressed(conn: sqlite3.Connection, item_ids: Iterable[str], *, tz_name: str) -> None:
+    """메일 편집 정책으로 노출하지 않은 현재 버전을 별도 상태로 기록한다."""
+    now = now_iso(tz_name)
+    conn.executemany(
+        """
+        UPDATE items
+        SET last_suppressed_at = :now,
+            suppressed_hash = content_hash
+        WHERE id = :id
+        """,
+        [{"id": i, "now": now} for i in item_ids],
+    )
+    conn.commit()
+
+
+def record_source_fetches(
+    conn: sqlite3.Connection,
+    outcomes: dict[str, tuple[int, Optional[str], float]],
+    *,
+    tz_name: str,
+) -> None:
+    """소스별 최신 접속 결과를 기록한다. 0건 성공은 실패가 아니다."""
+    now = now_iso(tz_name)
+    for source, (item_count, error, duration) in outcomes.items():
+        conn.execute(
+            """
+            INSERT INTO source_health (
+              source, last_attempt_at, last_success_at, last_item_count,
+              last_duration_seconds, last_error, consecutive_failures
+            ) VALUES (
+              :source, :now, :success_at, :item_count,
+              :duration, :error, :failures
+            )
+            ON CONFLICT(source) DO UPDATE SET
+              last_attempt_at = excluded.last_attempt_at,
+              last_success_at = CASE
+                WHEN excluded.last_error IS NULL THEN excluded.last_success_at
+                ELSE source_health.last_success_at
+              END,
+              last_item_count = excluded.last_item_count,
+              last_duration_seconds = excluded.last_duration_seconds,
+              last_error = excluded.last_error,
+              consecutive_failures = CASE
+                WHEN excluded.last_error IS NULL THEN 0
+                ELSE source_health.consecutive_failures + 1
+              END
+            """,
+            {
+                "source": source,
+                "now": now,
+                "success_at": now if error is None else None,
+                "item_count": item_count,
+                "duration": duration,
+                "error": error,
+                "failures": 0 if error is None else 1,
+            },
+        )
+    conn.commit()
+
+
 def mark_old_kofiu_announce_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
     """
-    KoFIU 공고/고시/훈령/예규 중, 오늘 이전에 게시된 미발송 건은
-    발송하지 않고 '이미 발송함'으로만 표시한다. 앞으로 올라오는 신규/변경분만 브리핑에 포함.
+    KoFIU 커넥터 최초 활성화 시 오늘 이전의 누적 보도자료·법령자료는
+    발송하지 않고 기준선으로 표시한다. 이후 신규/변경분만 브리핑에 포함한다.
     """
     now = now_iso(tz_name)
     today = now[:10]  # YYYY-MM-DD
@@ -413,7 +740,6 @@ def mark_old_kofiu_announce_as_sent(conn: sqlite3.Connection, *, tz_name: str) -
         SET last_sent_at = :now,
             sent_hash = content_hash
         WHERE source = 'kofiu'
-          AND source_item_key LIKE 'announce:%'
           AND last_sent_at IS NULL
           AND (published_at IS NULL OR published_at < :today)
         """,
@@ -664,4 +990,3 @@ def reset_sent_after(conn: sqlite3.Connection, after_date: str) -> int:
     )
     conn.commit()
     return cur.rowcount
-

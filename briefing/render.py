@@ -10,6 +10,7 @@ from typing import Any, Optional
 from jinja2 import Environment, FileSystemLoader
 
 from briefing.db import StoredItem
+from briefing.deadlines import deadline_urgency
 from briefing.sources.registry import SOURCE_SPECS
 from briefing.sources.urls import SCOURT_PRESS_LIST
 
@@ -20,8 +21,16 @@ class RenderAttachment:
     url: str
 
 
+@dataclass(frozen=True)
+class RenderDeadline:
+    label: str
+    date: str
+    urgency: str
+
+
 @dataclass
 class RenderItem:
+    item_id: Optional[str]
     source_code: str
     source_name_ko: str
     title: str
@@ -33,6 +42,7 @@ class RenderItem:
     summary: Optional[str]
     is_updated: bool
     attachments: list[RenderAttachment]
+    deadlines: list[RenderDeadline]
     child_items: list["RenderItem"] = field(default_factory=list)
     relevance_score: int = 0
     relevance_evidence: str = ""
@@ -48,6 +58,16 @@ RELEVANCE_STAR_THRESHOLD = 50
 class RenderSection:
     label: str
     items: list[RenderItem]
+
+
+@dataclass(frozen=True)
+class RenderedEmail:
+    html: str
+    visible_item_ids: tuple[str, ...]
+
+    @property
+    def visible_count(self) -> int:
+        return len(self.visible_item_ids)
 
 
 def _category_label(cat: str, source: str | None = None) -> str:
@@ -72,13 +92,13 @@ def _safe_json_loads(s: str) -> list[dict[str, Any]]:
         return []
 
 
-def render_email_html(
+def render_email(
     *,
     items: list[StoredItem],
     template_dir: str | Path,
     subject: str,
     run_date: str,
-) -> str:
+) -> RenderedEmail:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
         # 템플릿 확장자가 .j2라 select_autoescape가 적용되지 않아 무조건 켭니다.
@@ -158,6 +178,16 @@ def render_email_html(
             for a in _safe_json_loads(it.attachments_json)
             if a.get("url")
         ]
+        deadline_values: list[RenderDeadline] = []
+        for value in _safe_json_loads(it.deadlines_json or ""):
+            if value.get("label") and value.get("date"):
+                deadline_values.append(
+                    RenderDeadline(
+                        label=str(value["label"]),
+                        date=str(value["date"]),
+                        urgency=deadline_urgency(str(value["date"]), run_date),
+                    )
+                )
         is_updated = bool(it.last_sent_at) and (it.sent_hash != it.content_hash)
         importance = (it.importance or "low")
         # 고용노동부: 체불 + 제재 동시에 나오면 LOW
@@ -175,6 +205,7 @@ def render_email_html(
         rel_score = int(it.relevance_score or 0)
         by_importance.setdefault(importance, []).append(
             RenderItem(
+                item_id=it.id,
                 source_code=it.source,
                 source_name_ko=source_name_ko,
                 title=it.title,
@@ -186,6 +217,7 @@ def render_email_html(
                 summary=it.summary,
                 is_updated=is_updated,
                 attachments=atts,
+                deadlines=deadline_values,
                 child_items=[],
                 relevance_score=rel_score,
                 relevance_evidence=it.relevance_evidence or "",
@@ -226,7 +258,8 @@ def render_email_html(
     for k in list(by_importance.keys()):
         by_importance[k] = sorted(by_importance[k], key=_sort_key, reverse=True)
 
-    # 금융감독원(FSS) 자료가 금융위원회(FSC)와 60% 이상 제목 일치 시 FSC 하위로 들여쓰기
+    # 금융감독원·금융정보분석원 자료가 금융위원회 자료와 60% 이상 제목 일치 시
+    # FSC 하위로 들여쓰기. 공동 보도자료의 중복 노출을 줄이되 원문 링크는 보존한다.
     def _title_words(s: str) -> set[str]:
         return set(re.findall(r"[\w]+", (s or "").lower()))
 
@@ -238,9 +271,9 @@ def render_email_html(
 
     for k in list(by_importance.keys()):
         L = by_importance[k]
-        matched_fss_ids: set[int] = set()
+        matched_secondary_ids: set[int] = set()
         for item in L:
-            if item.source_code != "fss":
+            if item.source_code not in ("fss", "kofiu"):
                 continue
             best_fsc: Optional[RenderItem] = None
             best_sim = 0.0
@@ -253,8 +286,8 @@ def render_email_html(
                     best_fsc = other
             if best_fsc is not None:
                 best_fsc.child_items.append(item)
-                matched_fss_ids.add(id(item))
-        by_importance[k] = [i for i in L if id(i) not in matched_fss_ids]
+                matched_secondary_ids.add(id(item))
+        by_importance[k] = [i for i in L if id(i) not in matched_secondary_ids]
 
     # 같은 부처 내에서 보도자료와 입법/행정예고의 제목 유사도가 60% 이상이면
     # 입법/행정예고를 보도자료 하위로 들여쓰기
@@ -326,6 +359,7 @@ def render_email_html(
                 top = max(members, key=lambda m: m.relevance_score)
                 out.append(
                     RenderItem(
+                        item_id=None,
                         source_code="scourt",
                         source_name_ko=it.source_name_ko,
                         title=f"대법원 보도자료 · {d} 선고·결정 {len(members)}건",
@@ -337,6 +371,7 @@ def render_email_html(
                         summary=None,
                         is_updated=False,
                         attachments=[],
+                        deadlines=[],
                         child_items=list(members),
                         relevance_score=top.relevance_score,
                         relevance_evidence=top.relevance_evidence,
@@ -369,5 +404,35 @@ def render_email_html(
         html = transform(html, preserve_internal_links=True, remove_classes=False)
     except Exception:
         pass  # premailer 실패 시 원본 반환
-    return html
 
+    visible_ids: list[str] = []
+
+    def _collect(item: RenderItem) -> None:
+        if item.item_id:
+            visible_ids.append(item.item_id)
+        for child in item.child_items:
+            _collect(child)
+
+    for section in sections:
+        for item in section.items:
+            _collect(item)
+
+    # 한 원문이 중복 그룹에 들어가도 발송 상태는 한 번만 갱신한다.
+    unique_ids = tuple(dict.fromkeys(visible_ids))
+    return RenderedEmail(html=html, visible_item_ids=unique_ids)
+
+
+def render_email_html(
+    *,
+    items: list[StoredItem],
+    template_dir: str | Path,
+    subject: str,
+    run_date: str,
+) -> str:
+    """기존 호출부 호환용 HTML 전용 래퍼."""
+    return render_email(
+        items=items,
+        template_dir=template_dir,
+        subject=subject,
+        run_date=run_date,
+    ).html

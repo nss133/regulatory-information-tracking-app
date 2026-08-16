@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from email.utils import make_msgid
 from pathlib import Path
 
 from briefing.config import load_config
 from briefing.db import (
+    AmbiguousDeliveryError,
     connect,
+    create_delivery_run,
+    has_delivery_watch_alert,
     init_db,
     mark_old_kofiu_announce_as_sent,
     mark_sent,
+    mark_suppressed,
+    prepare_delivery_attempt,
+    record_delivery_watch_alert,
     rebuild_fts,
+    record_source_fetches,
     reset_sent_after,
     search_content,
+    select_recent_delivery_runs,
     select_items_missing_body,
     select_last_sent_batch,
     select_pending_attachments,
@@ -23,8 +33,12 @@ from briefing.db import (
     upsert_items,
     update_item_enrichment,
     update_item_relevance,
+    update_delivery_run,
 )
-from briefing.emailer import send_email, send_error_alert
+from briefing.delivery import archive_delivery, delivery_fingerprint
+from briefing.deadlines import deadlines_to_json, extract_deadlines
+from briefing.dashboard import render_dashboard, write_dashboard
+from briefing.emailer import send_admin_alert, send_email, send_error_alert
 from briefing.extract import extract_main_text, extract_page_content
 from briefing.http import HttpClient
 from briefing.ranking import rank_item
@@ -35,13 +49,15 @@ from briefing.jid_watch import (
     find_impacts,
 )
 from briefing.render import RELEVANCE_STAR_THRESHOLD
-from briefing.render import render_email_html
+from briefing.render import render_email, render_email_html
 from briefing.sanity import append_log as append_sanity_log
 from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
 from briefing.sources.registry import SOURCE_SPECS
 from briefing.summarize import should_call_llm, summarize_with_llm
 from briefing.utils import now_iso
+from briefing.watch import assess_delivery_run
+from briefing.maintenance import rotate_logs, verify_sqlite_backup
 
 
 def _render_text(items) -> str:
@@ -102,10 +118,10 @@ def _heuristic_summary(body: str) -> str | None:
     return None
 
 
-def _fetch_all(cfg) -> tuple[list, list[str]]:
+def _fetch_all(cfg) -> tuple[list, list[str], dict[str, tuple[int, str | None, float]]]:
     """모든 소스를 병렬 수집하고 소스별 소요시간을 출력합니다.
 
-    Returns: (fetched_items, errors)
+    Returns: (fetched_items, errors, source_outcomes)
     """
     import time as _time
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -122,19 +138,21 @@ def _fetch_all(cfg) -> tuple[list, list[str]]:
     fetched: list = []
     errors: list[str] = []
     timings: dict[str, float] = {}
+    outcomes: dict[str, tuple[int, str | None, float]] = {}
     t0 = _time.perf_counter()
     with ThreadPoolExecutor(max_workers=max(1, len(connectors))) as ex:
         for f in as_completed([ex.submit(_one, c) for c in connectors]):
             code, items, err, dt = f.result()
             fetched.extend(items)
             timings[code] = dt
+            outcomes[code] = (len(items), err, dt)
             if err:
                 errors.append(f"{code}: {err}")
     slow = "·".join(
         f"{k} {v:.1f}s" for k, v in sorted(timings.items(), key=lambda kv: -kv[1])[:3]
     )
     print(f"[timing] fetch {_time.perf_counter() - t0:.1f}s (느린 소스: {slow})")
-    return fetched, errors
+    return fetched, errors, outcomes
 
 
 def cmd_fetch(args) -> int:
@@ -142,14 +160,15 @@ def cmd_fetch(args) -> int:
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
 
-    fetched, errors = _fetch_all(cfg)
+    fetched, errors, outcomes = _fetch_all(cfg)
+    record_source_fetches(conn, outcomes, tz_name=cfg.timezone)
     upserted = upsert_items(conn, fetched, tz_name=cfg.timezone)
     print(f"수집 {len(fetched)}건, DB 반영 {upserted}건")
     if errors:
         print("에러:")
         for e in errors:
             print(f"- {e}")
-    return 0
+    return 1 if errors else 0
 
 
 def cmd_list(args) -> int:
@@ -165,13 +184,132 @@ def cmd_list(args) -> int:
     return 0
 
 
+def cmd_delivery_status(args) -> int:
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    try:
+        init_db(conn)
+        rows = select_recent_delivery_runs(conn, limit=args.limit)
+    finally:
+        conn.close()
+    if not rows:
+        print("기록된 발송 배치가 없습니다.")
+        return 0
+    for row in rows:
+        duration = (
+            f"{float(row['duration_seconds']):.1f}s"
+            if row["duration_seconds"] is not None else "-"
+        )
+        print(
+            f"{row['started_at']} | {row['status']}/{row['stage']} | "
+            f"수집 {row['fetched_count']} · 후보 {row['candidate_count']} · "
+            f"발송 {row['visible_count']} · 제외 {row['suppressed_count']} | "
+            f"{duration} | {row['run_id']}"
+        )
+        if row["message_id"]:
+            print(f"  Message-ID: {row['message_id']}")
+        if row["archive_path"]:
+            print(f"  보관: {row['archive_path']}")
+        if row["error"]:
+            print(f"  오류: {row['error']}")
+    return 0
+
+
+def cmd_delivery_watch(args) -> int:
+    cfg = load_config(args.config)
+    checked_at = now_iso(cfg.timezone)
+    expected_date = args.date or checked_at[:10]
+    conn = connect(cfg.storage.sqlite_path)
+    try:
+        init_db(conn)
+        result = assess_delivery_run(
+            conn,
+            expected_date=expected_date,
+            checked_at=checked_at,
+            stale_after_minutes=args.stale_minutes,
+        )
+        if result.healthy:
+            print(f"[delivery-watch] 정상: {result.reason}")
+            return 0
+        if has_delivery_watch_alert(conn, expected_date):
+            print(
+                f"[delivery-watch] 이미 경고함: {expected_date} · "
+                f"{result.code} · {result.reason}"
+            )
+            return 1
+
+        subject = f"[Legal·Compliance Signal] 브리핑 실행 확인 필요 ({expected_date})"
+        text = (
+            f"{expected_date} 브리핑 자동 실행을 확인해 주세요.\n\n"
+            f"상태: {result.code}\n"
+            f"사유: {result.reason}\n"
+            f"배치 ID: {result.run_id or '-'}\n"
+            f"확인 시각: {checked_at}\n\n"
+            "운영본에서 delivery-status 명령과 launchd 로그를 확인하세요.\n"
+        )
+        message_id = make_msgid(
+            idstring=f"briefing-watch.{expected_date}",
+            domain=cfg.email.from_email.split("@")[-1],
+        )
+        if getattr(args, "dry_run", False):
+            print(f"[delivery-watch] DRY-RUN 경고 대상: {subject}")
+            print(text)
+            return 1
+        send_admin_alert(
+            cfg=cfg.email, subject=subject, text_body=text, message_id=message_id
+        )
+        record_delivery_watch_alert(
+            conn,
+            alert_date=expected_date,
+            detected_at=checked_at,
+            reason_code=result.code,
+            reason=result.reason,
+            run_id=result.run_id,
+            message_id=message_id,
+        )
+        print(f"[delivery-watch] 관리자 경고 발송: {result.reason}")
+        return 1
+    finally:
+        conn.close()
+
+
+def cmd_operations(args) -> int:
+    cfg = load_config(args.config)
+    if args.rotate_logs:
+        rotated = rotate_logs(
+            args.log_dir,
+            max_bytes=max(1, args.max_log_mb) * 1024 * 1024,
+            keep=max(1, args.keep_logs),
+        )
+        print(f"로그 순환: {', '.join(rotated) if rotated else '대상 없음'}")
+    backup = verify_sqlite_backup(args.backup)
+    print(
+        f"백업 점검: {backup.integrity} · "
+        f"{backup.size_bytes / 1024 / 1024:.1f}MB · "
+        f"{backup.age_days:.1f}일 전" if backup.age_days is not None
+        else f"백업 점검: {backup.integrity} · {backup.path}"
+    )
+    conn = connect(cfg.storage.sqlite_path)
+    try:
+        init_db(conn)
+        content = render_dashboard(
+            conn, generated_at=now_iso(cfg.timezone), backup=backup
+        )
+    finally:
+        conn.close()
+    target = write_dashboard(args.dashboard, content)
+    print(f"운영 대시보드: {target}")
+    return 0 if backup.integrity in ("ok", "missing") else 1
+
+
 def cmd_preview(args) -> int:
     cfg = load_config(args.config)
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
 
     # 최신 수집부터 수행(프리뷰는 항상 최신 상태를 보게)
-    fetched, errors = _fetch_all(cfg)
+    fetched, errors, outcomes = _fetch_all(cfg)
+    record_source_fetches(conn, outcomes, tz_name=cfg.timezone)
     upsert_items(conn, fetched, tz_name=cfg.timezone)
     mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
 
@@ -183,12 +321,19 @@ def cmd_preview(args) -> int:
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
     )
 
-    subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (신규/변경 {len(pending)}건)"
-    html = render_email_html(
+    run_date = now_iso(cfg.timezone)
+    draft = render_email(
         items=pending,
         template_dir=Path("templates"),
-        subject=subject,
-        run_date=now_iso(cfg.timezone),
+        subject="",
+        run_date=run_date,
+    )
+    subject = (
+        f"{cfg.email.subject_prefix} {run_date[:10]} "
+        f"(브리핑 {draft.visible_count}건 · 수집 {len(pending)}건)"
+    )
+    html = render_email_html(
+        items=pending, template_dir=Path("templates"), subject=subject, run_date=run_date,
     )
     out_path = Path(args.out)
     out_path.write_text(html, encoding="utf-8")
@@ -235,6 +380,29 @@ def _enrich(conn, cfg, items) -> None:
         importance = rank.importance
         reason = rank.reason
         summary = None
+        deadline_text = f"{it.title or ''}\n{it.raw_text or ''}"
+        deadline_json = deadlines_to_json(extract_deadlines(deadline_text))
+        body = it.raw_text or ""
+        attachment_links = []
+
+        # 입법·행정예고는 중요도와 무관하게 상세 원문에서 명시적 기한을 확인한다.
+        # 실패해도 기존 분류·발송 흐름은 유지한다.
+        if it.category in ("legislation", "admin_notice") and it.source != "na":
+            try:
+                page_body, attachment_links = extract_page_content(http, it.url)
+                if page_body:
+                    body = page_body
+                    update_body_text(conn, item_id=it.id, body_text=page_body)
+                deadline_json = deadlines_to_json(
+                    extract_deadlines(f"{deadline_text}\n{page_body}")
+                )
+                for label, att_url in attachment_links:
+                    upsert_attachment_record(
+                        conn, item_id=it.id, source_url=att_url,
+                        label=label, tz_name=cfg.timezone,
+                    )
+            except Exception as e:
+                print(f"[deadline] 원문 확인 실패 {it.id}: {e}", file=sys.stderr)
 
         # 국회(na) 본회의 가결 의안은 실제 법령 통과를 의미하므로 HIGH 강제
         if it.source == "na" and (it.title or "").startswith("[본회의 가결]"):
@@ -286,6 +454,7 @@ def _enrich(conn, cfg, items) -> None:
                 importance=importance,
                 importance_reason=reason,
                 summary=None,
+                deadlines_json=deadline_json,
             )
             _save_relevance(it, it.summary)
             continue
@@ -305,18 +474,23 @@ def _enrich(conn, cfg, items) -> None:
                     conn, item_id=it.id,
                     importance=importance, importance_reason=reason,
                     summary=summary,
+                    deadlines_json=deadline_json,
                 )
                 _save_relevance(it, summary)
                 continue
             else:
-                try:
-                    body, attachment_links = extract_page_content(http, it.url)
-                except Exception:
-                    body = ""
-                    attachment_links = []
+                if not body:
+                    try:
+                        body, attachment_links = extract_page_content(http, it.url)
+                    except Exception:
+                        body = ""
+                        attachment_links = []
             # body text 저장 (update_body_text 내부 WHERE raw_text IS NULL로 idempotent)
             if body:
                 update_body_text(conn, item_id=it.id, body_text=body)
+                deadline_json = deadlines_to_json(
+                    extract_deadlines(f"{it.title or ''}\n{it.raw_text or ''}\n{body}")
+                )
             # 첨부파일 링크 등록 (pending 상태로)
             for label, att_url in attachment_links:
                 try:
@@ -363,6 +537,7 @@ def _enrich(conn, cfg, items) -> None:
             importance=importance,
             importance_reason=reason,
             summary=final_summary,
+            deadlines_json=deadline_json,
         )
         _save_relevance(it, final_summary)
 
@@ -371,22 +546,25 @@ def _enrich(conn, cfg, items) -> None:
               f"(호출 간 대기 {_llm_sleep:.1f}s)")
 
 
-def cmd_run(args) -> int:
-    cfg = load_config(args.config)
-    conn = connect(cfg.storage.sqlite_path)
-    init_db(conn)
+def _cmd_run(args, cfg, conn, run_id: str) -> int:
 
     import time as _time
+    _t_run = _time.perf_counter()
     _t_stage = _time.perf_counter()
 
     # 1) 수집 (소스별 병렬 수집)
-    fetched, errors = _fetch_all(cfg)
+    fetched, errors, outcomes = _fetch_all(cfg)
+    record_source_fetches(conn, outcomes, tz_name=cfg.timezone)
     upsert_items(conn, fetched, tz_name=cfg.timezone)
+    update_delivery_run(
+        conn, run_id, stage="fetched", fetched_count=len(fetched),
+        error_count=len(errors),
+    )
 
-    # KoFIU 공고/고시/훈령/예규: 오늘 이전 게시분은 발송 제외, 앞으로 업데이트분만 반영
+    # KoFIU 최초 활성화 기준선: 오늘 이전 누적 자료는 제외, 이후 신규/변경분만 반영
     n_marked_kofiu = mark_old_kofiu_announce_as_sent(conn, tz_name=cfg.timezone)
     if n_marked_kofiu:
-        print(f"KoFIU 공고/고시/훈령/예규 기존 자료 {n_marked_kofiu}건 발송 제외(앞으로 업데이트분만 반영)")
+        print(f"KoFIU 기존 누적 자료 {n_marked_kofiu}건 발송 제외(앞으로 신규/변경분만 반영)")
 
     # 대법원: 과거 mark_old_scourt_as_sent 호출은 매번 실행되어 신규
     # 판결까지 silent 처리해버리는 문제가 있어 제거. 7일 필터로 충분히
@@ -397,23 +575,14 @@ def cmd_run(args) -> int:
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
     )
+    update_delivery_run(conn, run_id, stage="enriched", candidate_count=len(pending))
     _enrich(conn, cfg, pending)
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
     )
     print(f"[timing] enrich {_time.perf_counter() - _t_stage:.1f}s ({len(pending)}건)")
 
-    if not pending:
-        print("발송 대상 없음(신규/변경 없음)")
-        # 발송 대상이 없어도 harvest는 실행 (body/첨부 수집 + FTS 갱신)
-        if cfg.archive.enabled:
-            try:
-                harvest_content(conn, cfg)
-            except Exception as e:
-                print(f"[harvest] 오류 (무시): {e}")
-        return 0
-
-    # 발송 전 자가진단 — 경고는 발송을 막지 않음. 메일에는 싣지 않고 stderr·vault 로그로만 남김
+    # 발송 대상 유무와 관계없이 소스 신선도 등 운영 자가진단은 매 실행 수행한다.
     sanity_warnings = run_sanity_checks(conn, pending)
     for w in sanity_warnings:
         print(f"[sanity] ⚠ {w}", file=sys.stderr)
@@ -425,6 +594,29 @@ def cmd_run(args) -> int:
             )
         except Exception as e:
             print(f"[sanity] 로그 기록 오류 (무시): {e}", file=sys.stderr)
+
+    if not pending:
+        print("발송 대상 없음(신규/변경 없음)")
+        if errors:
+            for e in errors:
+                print(f"수집 오류: {e}", file=sys.stderr)
+            send_error_alert(
+                cfg=cfg.email, errors=errors, run_date=now_iso(cfg.timezone)[:10]
+            )
+        # 발송 대상이 없어도 harvest는 실행 (body/첨부 수집 + FTS 갱신)
+        if cfg.archive.enabled:
+            try:
+                harvest_content(conn, cfg)
+            except Exception as e:
+                print(f"[harvest] 오류 (무시): {e}")
+        update_delivery_run(
+            conn, run_id, status="failed" if errors else "completed",
+            stage="fetch_error" if errors else "no_candidates",
+            error="; ".join(errors) if errors else None,
+            duration_seconds=_time.perf_counter() - _t_run,
+            completed=True, tz_name=cfg.timezone,
+        )
+        return 1 if errors else 0
 
     # 판단자산(J-ID) 영향 감시 — vault 로그에만 기록, 메일에는 싣지 않음. 실패해도 발송에 영향 없음
     jid_alerts = []
@@ -444,14 +636,42 @@ def cmd_run(args) -> int:
         except Exception as e:
             print(f"[jid-watch] 오류 (무시): {e}", file=sys.stderr)
 
-    subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (신규/변경 {len(pending)}건)"
-    html = render_email_html(
+    run_date = now_iso(cfg.timezone)
+    draft = render_email(
+        items=pending,
+        template_dir=Path("templates"),
+        subject="",
+        run_date=run_date,
+    )
+    pending_by_id = {it.id: it for it in pending}
+    visible_pending = [
+        pending_by_id[item_id]
+        for item_id in draft.visible_item_ids
+        if item_id in pending_by_id
+    ]
+    visible_ids = set(draft.visible_item_ids)
+    suppressed_ids = [it.id for it in pending if it.id not in visible_ids]
+    subject = (
+        f"{cfg.email.subject_prefix} {run_date[:10]} "
+        f"(브리핑 {draft.visible_count}건 · 수집 {len(pending)}건)"
+    )
+    rendered = render_email(
         items=pending,
         template_dir=Path("templates"),
         subject=subject,
-        run_date=now_iso(cfg.timezone),
+        run_date=run_date,
     )
-    text = _render_text(pending)
+    html = rendered.html
+    text = _render_text(visible_pending)
+    print(
+        f"[briefing] 수집 후보 {len(pending)}건, "
+        f"메일 노출 {len(visible_pending)}건, 정책 제외 {len(suppressed_ids)}건"
+    )
+    update_delivery_run(
+        conn, run_id, stage="rendered", candidate_count=len(pending),
+        visible_count=len(visible_pending), suppressed_count=len(suppressed_ids),
+        subject=subject, recipients_json=json.dumps(cfg.email.to, ensure_ascii=False),
+    )
 
     # 수집 오류가 있으면 먼저 리포트하고, 발송 여부를 확인
     if errors:
@@ -468,21 +688,82 @@ def cmd_run(args) -> int:
                     send_anyway = False
             if not send_anyway:
                 print("수집 오류가 있어 발송을 건너뜁니다. 강제 발송: --send-anyway")
+                send_error_alert(
+                    cfg=cfg.email, errors=errors, run_date=run_date[:10]
+                )
+                update_delivery_run(
+                    conn, run_id, status="failed", stage="fetch_error",
+                    error="; ".join(errors), completed=True, tz_name=cfg.timezone,
+                )
                 return 1
 
     if cfg.email.enabled:
-        _t_stage = _time.perf_counter()
-        send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text)
-        mark_sent(conn, [it.id for it in pending], tz_name=cfg.timezone)
-        print(f"발송 완료: {len(pending)}건")
-        print(f"[timing] 발송 {_time.perf_counter() - _t_stage:.1f}s")
+        if not visible_pending:
+            mark_suppressed(conn, suppressed_ids, tz_name=cfg.timezone)
+            print(f"메일 노출 대상 없음(정책 제외 {len(suppressed_ids)}건)")
+            update_delivery_run(
+                conn, run_id, status="completed", stage="no_visible_items",
+                duration_seconds=_time.perf_counter() - _t_run,
+                completed=True, tz_name=cfg.timezone,
+            )
+        else:
+            _t_stage = _time.perf_counter()
+            fingerprint = delivery_fingerprint(visible_pending, cfg.email.to)
+            message_id = make_msgid(
+                idstring=f"briefing.{run_id}",
+                domain=cfg.email.from_email.split("@")[-1],
+            )
+            archive_path = archive_delivery(
+                archive_root=Path("logs") / "deliveries",
+                run_date=run_date,
+                run_id=run_id,
+                subject=subject,
+                message_id=message_id,
+                recipients=cfg.email.to,
+                html=html,
+                items=visible_pending,
+            )
+            update_delivery_run(conn, run_id, archive_path=str(archive_path))
+            prepare_delivery_attempt(
+                conn, run_id, fingerprint=fingerprint, message_id=message_id,
+            )
+            try:
+                send_email(
+                    cfg=cfg.email, subject=subject, html_body=html, text_body=text,
+                    message_id=message_id,
+                )
+            except Exception as smtp_error:
+                # 명시적인 SMTP 예외는 재시도 가능한 실패다. send_email이 정상 반환한
+                # 뒤의 장애와 구분하기 위해 이 지점에서 상태를 먼저 확정한다.
+                update_delivery_run(
+                    conn, run_id, status="failed", stage="smtp_failed",
+                    error=f"{type(smtp_error).__name__}: {smtp_error}",
+                )
+                raise
+            update_delivery_run(conn, run_id, status="smtp_accepted", stage="smtp_accepted")
+            mark_sent(conn, [it.id for it in visible_pending], tz_name=cfg.timezone)
+            mark_suppressed(conn, suppressed_ids, tz_name=cfg.timezone)
+            update_delivery_run(
+                conn, run_id, status="completed", stage="delivered",
+                completed=True, tz_name=cfg.timezone,
+            )
+            print(
+                f"발송 완료: {len(visible_pending)}건 "
+                f"(정책 제외 별도 기록 {len(suppressed_ids)}건)"
+            )
+            print(f"[timing] 발송 {_time.perf_counter() - _t_stage:.1f}s")
     else:
         print("email.enabled=false 이므로 발송하지 않았습니다.")
         print(text)
+        update_delivery_run(
+            conn, run_id, status="completed", stage="email_disabled",
+            duration_seconds=_time.perf_counter() - _t_run,
+            completed=True, tz_name=cfg.timezone,
+        )
 
     if errors:
         print("(참고) 수집 오류가 있었으나 발송은 완료되었습니다.")
-        send_error_alert(cfg=cfg.email, errors=errors, run_date=now_iso(cfg.timezone)[:10])
+        send_error_alert(cfg=cfg.email, errors=errors, run_date=run_date[:10])
 
     # 4) 콘텐츠 아카이브 (이메일 발송 후 실행, 실패해도 종료코드 영향 없음)
     if cfg.archive.enabled:
@@ -493,7 +774,52 @@ def cmd_run(args) -> int:
             print(f"[harvest] 오류 (무시): {e}")
         print(f"[timing] harvest {_time.perf_counter() - _t_stage:.1f}s")
 
+    update_delivery_run(
+        conn, run_id, duration_seconds=_time.perf_counter() - _t_run,
+        completed=True, tz_name=cfg.timezone,
+    )
+
     return 0
+
+
+def cmd_run(args) -> int:
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    run_id = create_delivery_run(conn, tz_name=cfg.timezone)
+    try:
+        return _cmd_run(args, cfg, conn, run_id)
+    except BaseException as exc:
+        row = conn.execute(
+            "SELECT status, stage FROM delivery_runs WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        status = row["status"] if row else "running"
+        stage = row["stage"] if row else "started"
+        # 정상적인 Exception(SMTP 거절·연결 실패 등)은 명시적 실패로 재시도 가능하다.
+        # KeyboardInterrupt/SystemExit처럼 결과를 확정할 수 없는 중단과, 이전의
+        # 불명확 배치를 감지한 경우만 확인 필요 상태로 둔다.
+        ambiguous = status in ("sending", "smtp_accepted", "ambiguous")
+        try:
+            update_delivery_run(
+                conn,
+                run_id,
+                status="ambiguous" if ambiguous else "failed",
+                stage=(
+                    "delivery_uncertain" if ambiguous
+                    else stage if status == "failed"
+                    else "failed"
+                ),
+                error=f"{type(exc).__name__}: {exc}",
+                completed=True,
+                tz_name=cfg.timezone,
+            )
+        except Exception as record_error:
+            print(f"[delivery] 실패 이력 기록 오류: {record_error}", file=sys.stderr)
+        if isinstance(exc, AmbiguousDeliveryError):
+            print(f"[delivery] 중복 발송 차단: {exc}", file=sys.stderr)
+        raise
+    finally:
+        conn.close()
 
 
 def harvest_content(conn, cfg) -> None:
@@ -702,6 +1028,9 @@ def build_parser() -> argparse.ArgumentParser:
     for name, fn in [
         ("fetch", cmd_fetch),
         ("list", cmd_list),
+        ("delivery-status", cmd_delivery_status),
+        ("delivery-watch", cmd_delivery_watch),
+        ("operations", cmd_operations),
         ("preview", cmd_preview),
         ("run", cmd_run),
         ("reset-sent", cmd_reset_sent),
@@ -731,6 +1060,25 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "search":
             sp.add_argument("--query", required=True, help="검색어 (예: '과징금 보험업법')")
             sp.add_argument("--limit", type=int, default=20, help="최대 결과 수 (기본: 20)")
+        if name == "delivery-status":
+            sp.add_argument("--limit", type=int, default=10, help="표시할 최근 실행 수")
+        if name == "delivery-watch":
+            sp.add_argument("--date", help="점검 날짜(기본: 오늘, YYYY-MM-DD)")
+            sp.add_argument(
+                "--stale-minutes", type=int, default=45,
+                help="실행 중 상태를 고장으로 볼 경과시간(기본: 45분)",
+            )
+            sp.add_argument(
+                "--dry-run", action="store_true",
+                help="경고 조건만 점검하고 메일과 이력을 남기지 않음",
+            )
+        if name == "operations":
+            sp.add_argument("--dashboard", default="logs/status.html")
+            sp.add_argument("--backup", default="data_backup/briefing_weekly.sqlite3")
+            sp.add_argument("--log-dir", default="logs")
+            sp.add_argument("--rotate-logs", action="store_true")
+            sp.add_argument("--max-log-mb", type=int, default=5)
+            sp.add_argument("--keep-logs", type=int, default=5)
         sp.set_defaults(_fn=fn)
     return p
 
@@ -739,4 +1087,3 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args._fn(args))
-

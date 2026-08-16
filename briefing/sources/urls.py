@@ -21,6 +21,8 @@ NA_MAIN = "https://likms.assembly.go.kr/bill/main.do"
 KOFIU_PRESS_LIST = "https://www.kofiu.go.kr/kor/notification/report.do"
 KOFIU_ANNOUNCE_LIST = "https://www.kofiu.go.kr/kor/law/announce_list.do"   # 공고/고시/훈령/예규
 KOFIU_LAW_NOTICE_LIST = "https://www.kofiu.go.kr/kor/law/legislation_list.do"  # 입법/규정변경 예고
+KOFIU_BOARD_LIST_API = "https://www.kofiu.go.kr/cmn/board/selectBoardListFile.do"
+KOFIU_LAW_LIST_API = "https://www.kofiu.go.kr/cmn/board/selectLawList.do"
 
 KNIA_PRESS_LIST = "https://www.knia.or.kr/data/news"  # 손해보험협회 보도자료
 
@@ -30,4 +32,3 @@ SCOURT_MAJOR_DECISIONS_LIST = (
     "display=10&orderby=DESC&orderby_item=DECI_DATE&"
     "pageNo=1&search_category=3%2C4%2C5%2C6&search_kind=2&search_mode=detail"
 )
-

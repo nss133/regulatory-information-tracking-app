@@ -35,11 +35,16 @@ def send_error_alert(*, cfg: EmailConfig, errors: list[str], run_date: str) -> N
         print(f"오류 알림 이메일 발송 실패: {e}")
 
 
-def send_email(*, cfg: EmailConfig, subject: str, html_body: str, text_body: str) -> None:
+def send_email(
+    *, cfg: EmailConfig, subject: str, html_body: str, text_body: str,
+    message_id: str | None = None,
+) -> str:
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = Address(display_name=cfg.from_name, addr_spec=cfg.from_email)
     msg["To"] = ", ".join(cfg.to)
+    if message_id:
+        msg["Message-ID"] = message_id
 
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
@@ -62,4 +67,27 @@ def send_email(*, cfg: EmailConfig, subject: str, html_body: str, text_body: str
                 f"원본 에러: {e}"
             ) from e
         s.send_message(msg)
+    return str(msg["Message-ID"] or "")
 
+
+def send_admin_alert(
+    *, cfg: EmailConfig, subject: str, text_body: str,
+    message_id: str | None = None,
+) -> str:
+    """운영 감시 경보를 관리자(발신 주소)에게 보내며 실패는 호출자에게 전달한다."""
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = Address(display_name=cfg.from_name, addr_spec=cfg.from_email)
+    msg["To"] = cfg.from_email
+    if message_id:
+        msg["Message-ID"] = message_id
+    msg.set_content(text_body)
+
+    password = cfg.smtp.password()
+    with smtplib.SMTP(cfg.smtp.host, cfg.smtp.port, timeout=30) as s:
+        s.ehlo()
+        s.starttls()
+        s.ehlo()
+        s.login(cfg.smtp.user, password)
+        s.send_message(msg)
+    return str(msg["Message-ID"] or "")

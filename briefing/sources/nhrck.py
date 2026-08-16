@@ -29,6 +29,10 @@ class NhrckConnector(SourceConnector):
             href = a.get("href") or ""
             if "boardManagementNo=24" not in href:
                 continue
+            # 신규 표시용 <em class="new_mark">N</em>은 제목이 아니다.
+            new_mark = a.select_one(".new_mark")
+            if new_mark:
+                new_mark.decompose()
             title = normalize_ws(a.get_text(" ", strip=True))
             if not href or not title:
                 continue
@@ -36,7 +40,12 @@ class NhrckConnector(SourceConnector):
             qs = parse_qs(urlparse(url).query)
             board_no = (qs.get("boardNo") or [None])[0]
             key = board_no or url
-            published_at = parse_yyyy_mm_dd(a.parent.get_text(" ", strip=True))
+            # 날짜는 제목 td의 형제가 아니라 같은 tr의 별도 td.date에 있다.
+            row = a.find_parent("tr")
+            date_cell = row.select_one("td.date") if row else None
+            published_at = parse_yyyy_mm_dd(
+                date_cell.get_text(" ", strip=True) if date_cell else ""
+            )
             out.append(
                 FetchedItem(
                     source="nhrck",
@@ -52,4 +61,3 @@ class NhrckConnector(SourceConnector):
             if len(out) >= self._max_items:
                 break
         return out
-

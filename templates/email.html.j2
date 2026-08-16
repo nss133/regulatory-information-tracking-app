@@ -58,7 +58,6 @@
       .tag-source  { background-color: #e8f0fe; color: #1a56db; }
       .tag-kind    { background-color: #f3f0ff; color: #6c3fc7; }
       .tag-new     { background-color: #e6f4ea; color: #1b6b3a; }
-      .tag-updated { background-color: #fef3e2; color: #92400e; }
       .item-date   { font-size: 12px; color: #aaa; vertical-align: middle; }
 
       /* ── 관련성 표시 (별만, 은은하게) ── */
@@ -85,6 +84,16 @@
         padding-left: 8px;
         border-left: 2px solid #ccc;
       }
+
+      .item-relevance {
+        font-size: 12px;
+        color: #92400e;
+        line-height: 1.5;
+        margin: 2px 0 3px;
+      }
+      .item-deadlines { margin: 3px 0; font-size: 12px; color: #7c2d12; }
+      .deadline { display: inline-block; margin-right: 8px; font-weight: 600; }
+      .deadline-expired { color: #888; text-decoration: line-through; }
 
       /* ── 이유 (summary 없을 때) ── */
       .item-reason {
@@ -119,7 +128,7 @@
   <body>
 
     <div class="top-meta">
-      {{ run_date[:10] }} &nbsp;·&nbsp; Legal &amp; Compliance Signal &nbsp;·&nbsp; 신규/변경 항목만 포함
+      {{ run_date[:10] }} &nbsp;·&nbsp; Legal &amp; Compliance Signal &nbsp;·&nbsp; 이번 회차 선별 항목
     </div>
 
     {% for sec in sections %}
@@ -141,15 +150,26 @@
               <div class="item-meta">
                 <span class="tag tag-source">{{ it.source_name_ko }}</span>
                 <span class="tag tag-kind">{{ it.category_label }}</span>
-                {% if not it.is_updated %}
+                {% if it.item_id and not it.is_updated %}
                   <span class="tag tag-new">신규</span>
                 {% endif %}
-                {% if it.published_at and not it.summary %}
+                {% if it.published_at %}
                   <span class="item-date">{{ it.published_at }}</span>
                 {% endif %}
               </div>
 
               <a class="item-title" href="{{ it.url }}">{% if it.company_flag %}<span class="star" title="{{ it.relevance_evidence }}">★</span> {% endif %}{{ it.title }}</a>
+
+              {% if it.company_flag and it.relevance_evidence %}
+                <div class="item-relevance">★ 당사 관련: {{ it.relevance_evidence }}</div>
+              {% endif %}
+              {% if it.deadlines|length > 0 %}
+                <div class="item-deadlines">
+                  {% for deadline in it.deadlines %}
+                    <span class="deadline deadline-{{ deadline.urgency }}">{{ deadline.label }} {{ deadline.date }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
 
               {% if it.summary %}
                 <div class="item-summary">{{ it.summary }}</div>
@@ -173,8 +193,14 @@
                       <div class="item-meta">
                         <span class="tag tag-source">{{ child.source_name_ko }}</span>
                         <span class="tag tag-kind">{{ child.category_label }}</span>
+                        {% if not child.is_updated %}
+                          <span class="tag tag-new">신규</span>
+                        {% endif %}
+                        {% if child.published_at %}<span class="item-date">{{ child.published_at }}</span>{% endif %}
                       </div>
                       <a class="item-title" href="{{ child.url }}">{% if child.company_flag %}<span class="star" title="{{ child.relevance_evidence }}">★</span> {% endif %}{{ child.title }}</a>
+                      {% if child.company_flag and child.relevance_evidence %}<div class="item-relevance">★ 당사 관련: {{ child.relevance_evidence }}</div>{% endif %}
+                      {% if child.deadlines|length > 0 %}<div class="item-deadlines">{% for deadline in child.deadlines %}<span class="deadline deadline-{{ deadline.urgency }}">{{ deadline.label }} {{ deadline.date }}</span>{% endfor %}</div>{% endif %}
                       {% if child.reason %}<div class="item-reason">{{ child.reason }}</div>{% endif %}
                       {% if child.attachments|length > 0 %}
                         <div class="item-attach">

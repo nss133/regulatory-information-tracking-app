@@ -7,6 +7,7 @@ import unittest
 from types import SimpleNamespace
 
 from briefing.sanity import run_sanity_checks
+from briefing.db import init_db, record_source_fetches
 
 
 def _item(title="제목", raw_text="정상 본문", importance="low"):
@@ -28,6 +29,9 @@ def _conn_with_history(highs_per_day: int, days: int = 10) -> sqlite3.Connection
 class TestChromePollution(unittest.TestCase):
     def setUp(self):
         self.conn = _conn_with_history(highs_per_day=2)
+
+    def tearDown(self):
+        self.conn.close()
 
     def test_clean_items_no_warning(self):
         warnings = run_sanity_checks(self.conn, [_item(), _item()])
@@ -52,6 +56,7 @@ class TestChromePollution(unittest.TestCase):
 class TestHighSurge(unittest.TestCase):
     def test_surge_detected(self):
         conn = _conn_with_history(highs_per_day=1)  # 일평균 1건
+        self.addCleanup(conn.close)
         pending = [_item(importance="high") for _ in range(8)]  # 오늘 8건(3배 초과)
         warnings = run_sanity_checks(conn, pending)
         self.assertEqual(len(warnings), 1)
@@ -59,16 +64,42 @@ class TestHighSurge(unittest.TestCase):
 
     def test_normal_high_count_ok(self):
         conn = _conn_with_history(highs_per_day=3)  # 일평균 3건
+        self.addCleanup(conn.close)
         pending = [_item(importance="high") for _ in range(5)]  # 3배 미만
         warnings = run_sanity_checks(conn, pending)
         self.assertEqual(warnings, [])
 
     def test_below_absolute_min_ok(self):
         conn = _conn_with_history(highs_per_day=0, days=0)  # 이력 없음
+        self.addCleanup(conn.close)
         pending = [_item(importance="high") for _ in range(4)]  # 절대치 5건 미만
         warnings = run_sanity_checks(conn, pending)
         self.assertEqual(warnings, [])
 
+
+class TestSourceHealth(unittest.TestCase):
+    def test_source_with_no_history_is_reported(self):
+        conn = sqlite3.connect(":memory:")
+        self.addCleanup(conn.close)
+        init_db(conn)
+        warnings = run_sanity_checks(conn, [])
+        self.assertTrue(any("수집 이력이 전혀 없는 소스" in w for w in warnings))
+        self.assertTrue(any("금융정보분석원" in w for w in warnings))
+
+    def test_successful_zero_items_is_not_missing(self):
+        conn = sqlite3.connect(":memory:")
+        self.addCleanup(conn.close)
+        init_db(conn)
+        outcomes = {
+            source: (0, None, 0.1)
+            for source in (
+                "fsc", "fss", "pipc", "moel", "nhrck", "kftc", "kofiu", "na", "scourt"
+            )
+        }
+        record_source_fetches(conn, outcomes, tz_name="Asia/Seoul")
+        warnings = run_sanity_checks(conn, [])
+        self.assertFalse(any("수집 이력이 전혀 없는 소스" in w for w in warnings))
+        self.assertFalse(any("금융정보분석원" in w for w in warnings))
 
 if __name__ == "__main__":
     unittest.main()

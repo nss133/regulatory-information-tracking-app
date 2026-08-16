@@ -6,17 +6,45 @@ ROOT_DIR="$(pwd)"
 [[ -d "$ROOT_DIR/.venv" ]] || ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if [[ ! -d ".venv" ]]; then
+# 정기 브리핑은 평일에만 발송한다. launchd 설정과 별개로 주말 호출을 한 번 더 차단한다.
+if (( 10#$(date +%u) >= 6 )); then
+  echo "INFO: 주말에는 브리핑을 발송하지 않습니다."
+  exit 0
+fi
+
+VENV_PYTHON="$ROOT_DIR/.venv/bin/python"
+if [[ ! -x "$VENV_PYTHON" ]]; then
   echo "ERROR: .venv가 없습니다. README의 설치 절차를 먼저 진행하세요." >&2
   exit 1
 fi
 
-source .venv/bin/activate
+# cron/launchd 중복 등록이나 수동 실행 겹침으로 같은 브리핑이 동시에 발송되는 것을 방지.
+# 비정상 종료로 잠금이 남았더라도 기록된 PID가 살아 있지 않으면 안전하게 회수한다.
+mkdir -p data
+RUN_LOCK_DIR="data/.briefing-run.lock"
+if ! mkdir "$RUN_LOCK_DIR" 2>/dev/null; then
+  LOCK_PID="$(sed -n '1p' "$RUN_LOCK_DIR/pid" 2>/dev/null || true)"
+  if [[ "$LOCK_PID" =~ ^[0-9]+$ ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
+    echo "INFO: briefing이 이미 실행 중입니다(pid=$LOCK_PID). 중복 실행을 건너뜁니다." >&2
+    exit 0
+  fi
+  rmdir "$RUN_LOCK_DIR" 2>/dev/null || {
+    echo "ERROR: 오래된 실행 잠금을 회수하지 못했습니다: $RUN_LOCK_DIR" >&2
+    exit 1
+  }
+  mkdir "$RUN_LOCK_DIR"
+fi
+printf '%s\n' "$$" > "$RUN_LOCK_DIR/pid"
+cleanup_run_lock() {
+  rm -f "$RUN_LOCK_DIR/pid"
+  rmdir "$RUN_LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup_run_lock EXIT INT TERM
 
 CONFIG="${1:-config.yaml}"
 
 # config에서 smtp.user(account) + llm.api_key_env(키 이름) 읽기
-read -r ACCOUNT LLM_KEY_ENV <<<"$(python3 -c "
+read -r ACCOUNT LLM_KEY_ENV <<<"$("$VENV_PYTHON" -c "
 import yaml
 try:
     c = yaml.safe_load(open('$CONFIG'))
@@ -63,7 +91,7 @@ if ls -lO data/ 2>/dev/null | grep -q dataless; then
   echo "INFO: data/ 다운로드 완료." >&2
 fi
 
-python -m briefing run --config "$CONFIG"
+"$VENV_PYTHON" -m briefing run --config "$CONFIG"
 
 # 주 1회(월요일) DB 스냅샷 백업 — DB 본체는 iCloud 밖(Application Support)에 있으므로
 # 재해 대비 사본만 iCloud 프로젝트 폴더에 남긴다. sqlite3 .backup은 온라인 백업이라 안전.
@@ -76,9 +104,12 @@ if [[ "$(date +%u)" == "1" ]]; then
   fi
 fi
 
+# 실행 원장·소스 건강도 대시보드 갱신과 로그 순환. 백업이 아직 없는 초기 주는 정상.
+"$VENV_PYTHON" -m briefing operations --config "$CONFIG" --rotate-logs || \
+  echo "WARN: 운영 대시보드/백업 점검 실패" >&2
+
 # 법원 판결 인덱스 자동 갱신 (수집 직후 — 신규 판결을 vault 판례(근거) 인덱스에 반영).
 # 실패해도 수집 결과는 유지하도록 non-fatal 처리.
 if [[ -f "build_court_index.py" ]]; then
-  python build_court_index.py || echo "WARN: 법원 판결 인덱스 갱신 실패(무시하고 계속)" >&2
+  "$VENV_PYTHON" build_court_index.py || echo "WARN: 법원 판결 인덱스 갱신 실패(무시하고 계속)" >&2
 fi
-

@@ -10,7 +10,10 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from briefing.sources.registry import SOURCE_SPECS
 
 # 페이지 본문이 아니라 사이트 껍데기(메뉴·footer)가 추출됐음을 나타내는 마커.
 # '개인정보처리방침' 같은 단어는 보도자료 본문에 정당하게 등장할 수 있어 쓰지 않고,
@@ -21,6 +24,10 @@ _CHROME_MARKERS = ("이메일무단수집거부", "영상정보처리기기 운�
 # HIGH 급증 판정: 최근 30일 일평균의 3배 초과 & 절대 5건 이상
 _HIGH_ABS_MIN = 5
 _HIGH_RATIO = 3.0
+# 주말을 정상 정지로 보므로 5일 이상 관측이 끊겼을 때 경고한다.
+_SOURCE_STALE_DAYS = 5
+_MISSING_DATE_RATIO = 0.8
+_MISSING_DATE_MIN_ITEMS = 10
 
 
 def _check_chrome_pollution(pending) -> list[str]:
@@ -64,11 +71,98 @@ def _check_high_surge(conn: sqlite3.Connection, pending) -> list[str]:
     return []
 
 
+def _check_source_health(conn: sqlite3.Connection) -> list[str]:
+    """소스 전체 누락·수집 정지·게시일 파싱 붕괴를 조기에 감지한다."""
+    try:
+        health_rows = conn.execute(
+            """
+            SELECT source, last_attempt_at, last_success_at, last_item_count,
+                   last_error, consecutive_failures
+            FROM source_health
+            """
+        ).fetchall()
+        rows = conn.execute(
+            """
+            WITH latest AS (
+              SELECT source, MAX(last_seen_at) AS latest_seen
+              FROM items
+              GROUP BY source
+            )
+            SELECT i.source, COUNT(*) AS n, l.latest_seen,
+                   SUM(CASE WHEN i.published_at IS NULL THEN 1 ELSE 0 END) AS missing_date
+            FROM items i
+            JOIN latest l
+              ON l.source = i.source AND l.latest_seen = i.last_seen_at
+            GROUP BY i.source, l.latest_seen
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        # 단위 테스트나 구버전 최소 스키마에서는 다른 진단을 계속 수행한다.
+        return []
+
+    by_source = {row[0]: row for row in rows}
+    warnings: list[str] = []
+    by_health = {row[0]: row for row in health_rows}
+    observed_sources = set(by_health) if by_health else set(by_source)
+    missing_sources = sorted(set(SOURCE_SPECS) - observed_sources)
+    if missing_sources:
+        names = ", ".join(SOURCE_SPECS[s].name_ko for s in missing_sources)
+        warnings.append(f"수집 이력이 전혀 없는 소스: {names} — 커넥터 점검 필요")
+
+    failed: list[str] = []
+    for source, row in sorted(by_health.items()):
+        if source not in SOURCE_SPECS or not row[4]:
+            continue
+        failed.append(
+            f"{SOURCE_SPECS[source].name_ko} {int(row[5] or 0)}회"
+        )
+    if failed:
+        warnings.append("최근 수집 실패: " + ", ".join(failed))
+
+    stale: list[str] = []
+    now = datetime.now(timezone.utc)
+    for source in sorted(set(SOURCE_SPECS) & observed_sources):
+        # 정상 0건 응답도 성공으로 기록되므로 source_health가 있으면 이를 우선한다.
+        latest_seen = by_health[source][2] if by_health else by_source[source][2]
+        if not latest_seen:
+            stale.append(SOURCE_SPECS[source].name_ko)
+            continue
+        try:
+            seen_at = datetime.fromisoformat(str(latest_seen))
+            if seen_at.tzinfo is None:
+                seen_at = seen_at.replace(tzinfo=timezone.utc)
+            if seen_at.astimezone(timezone.utc) < now - timedelta(days=_SOURCE_STALE_DAYS):
+                stale.append(SOURCE_SPECS[source].name_ko)
+        except ValueError:
+            stale.append(SOURCE_SPECS[source].name_ko)
+    if stale:
+        warnings.append(
+            f"최근 {_SOURCE_STALE_DAYS}일 수집 흔적이 없는 소스: {', '.join(stale)}"
+        )
+
+    date_quality: list[str] = []
+    for source, row in sorted(by_source.items()):
+        if source not in SOURCE_SPECS:
+            continue
+        n = int(row[1] or 0)
+        missing = int(row[3] or 0)
+        if n >= _MISSING_DATE_MIN_ITEMS and missing / n >= _MISSING_DATE_RATIO:
+            pct = round(100 * missing / n)
+            date_quality.append(f"{SOURCE_SPECS[source].name_ko} {pct}%")
+    if date_quality:
+        warnings.append(
+            "게시일 누락률 과다: " + ", ".join(date_quality)
+            + " — 기간 필터·정렬 정확도 점검 필요"
+        )
+    return warnings
+
+
 def run_sanity_checks(conn: sqlite3.Connection, pending) -> list[str]:
     """발송 대상(pending)에 대한 자가진단. 경고 문자열 목록을 반환(정상이면 빈 목록)."""
     warnings: list[str] = []
     warnings.extend(_check_chrome_pollution(pending))
     warnings.extend(_check_high_surge(conn, pending))
+    warnings.extend(_check_source_health(conn))
     return warnings
 
 
