@@ -103,7 +103,7 @@ def init_db(conn: sqlite3.Connection) -> None:
         """
     )
 
-    # 미래에셋생명 관련성(relevance) shadow 컬럼 — 노출(등급·정렬) 미반영, 기록만.
+    # 미래에셋생명 관련성 컬럼 — 중요도와 별도로 정렬과 ★ 표시에 사용.
     cols = {r[1] for r in conn.execute("PRAGMA table_info(items)")}
     if "relevance_score" not in cols:
         conn.execute("ALTER TABLE items ADD COLUMN relevance_score INTEGER")

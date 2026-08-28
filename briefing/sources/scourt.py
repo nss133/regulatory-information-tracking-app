@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse, urljoin
 
 from briefing.http import HttpClient
@@ -14,7 +16,9 @@ class ScourtConnector(SourceConnector):
     """
     대법원
     - 보도자료/언론보도 해명: portal/news/NewsListAction.work?gubun=4&type=0
-    - 주요판결(대법원 주요판결): CourtLibrary judg/result + judgDetail
+
+    법원도서관의 대법원주요판결은 위 판례속보에 실린 중요판결·결정과
+    내용이 겹치므로 일일 브리핑에서는 별도로 수집하지 않는다.
     """
 
     code = "scourt"
@@ -24,10 +28,7 @@ class ScourtConnector(SourceConnector):
         self._max_items = max_items
 
     def fetch_latest(self) -> list[FetchedItem]:
-        items: list[FetchedItem] = []
-        items.extend(self._fetch_press())
-        items.extend(self._fetch_major_decisions())
-        return items
+        return self._fetch_press()
 
     def _fetch_press(self) -> list[FetchedItem]:
         html = self._http.get_text(SCOURT_PRESS_LIST)
@@ -99,8 +100,11 @@ class ScourtConnector(SourceConnector):
             if not title:
                 continue
 
-            published_at = parse_yyyy_mm_dd(context_text)
             attachments, body_text = self._parse_major_detail(url)
+            published_at = (
+                parse_yyyy_mm_dd(context_text)
+                or parse_decision_date(body_text)
+            )
 
             qs = parse_qs(urlparse(url).query)
             seq_no = (qs.get("seqNo") or [None])[0]
@@ -174,3 +178,16 @@ def parse_major_detail_html(html: str, url: str) -> tuple[list[Attachment], str 
     ]
     return attachments, text
 
+
+def parse_decision_date(text: str | None) -> datetime | None:
+    """주요판결 상세의 명시적인 선고일자를 구조화한다."""
+    match = re.search(
+        r"선고일자\s*(20\d{2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})",
+        text or "",
+    )
+    if not match:
+        return None
+    try:
+        return datetime(*(int(value) for value in match.groups()))
+    except ValueError:
+        return None

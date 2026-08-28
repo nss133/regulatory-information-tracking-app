@@ -8,8 +8,14 @@ fixture는 실제 페이지 저장본(tests/fixtures/) — 사이트 개편 시 
 """
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from briefing.sources.scourt import parse_major_detail_html, parse_press_detail_html
+from briefing.sources.scourt import (
+    ScourtConnector,
+    parse_decision_date,
+    parse_major_detail_html,
+    parse_press_detail_html,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -41,6 +47,11 @@ class TestMajorDetail(unittest.TestCase):
         self.assertEqual(len(self.attachments), 1)
         self.assertEqual(self.attachments[0].label, "원문 보기")
 
+    def test_decision_date_is_parsed(self):
+        value = parse_decision_date(self.text)
+        self.assertIsNotNone(value)
+        self.assertEqual(value.date().isoformat(), "2026-07-07")
+
 
 class TestPressDetail(unittest.TestCase):
     def setUp(self):
@@ -56,6 +67,17 @@ class TestPressDetail(unittest.TestCase):
     def test_no_full_page_fallback(self):
         # body 폴백이면 페이지 최상단 스킵 링크가 앞부분에 나타난다
         self.assertFalse(self.text.startswith("주메뉴 바로가기"), "body 폴백 의심")
+
+
+class TestScourtSourcePolicy(unittest.TestCase):
+    def test_fetch_latest_does_not_fetch_court_library_duplicates(self):
+        connector = ScourtConnector(None)  # type: ignore[arg-type]
+        with patch.object(connector, "_fetch_press", return_value=["press"]), patch.object(
+            connector,
+            "_fetch_major_decisions",
+            side_effect=AssertionError("법원도서관을 호출하면 안 됨"),
+        ):
+            self.assertEqual(connector.fetch_latest(), ["press"])
 
 
 if __name__ == "__main__":

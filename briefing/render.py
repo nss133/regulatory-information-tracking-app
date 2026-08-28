@@ -12,7 +12,8 @@ from jinja2 import Environment, FileSystemLoader
 from briefing.db import StoredItem
 from briefing.deadlines import deadline_urgency
 from briefing.sources.registry import SOURCE_SPECS
-from briefing.sources.urls import SCOURT_PRESS_LIST
+from briefing.sources.scourt import parse_decision_date
+from briefing.sources.urls import SCOURT_MAJOR_DECISIONS_LIST, SCOURT_PRESS_LIST
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,10 @@ def render_email(
         # 고용노동부는 HIGH만 표시 (LOW/MEDIUM은 노이즈가 많아 제외)
         if it.source == "moel" and (it.importance or "low") in ("low", "medium"):
             return True
+        # 법원도서관 개별 주요판결은 대법원 판례속보의 중요판결·결정 자료와
+        # 중복된다. 수집 중단 전에 DB에 들어온 항목도 메일에서는 노출하지 않는다.
+        if it.source == "scourt" and it.category == "case_law":
+            return True
         return False
 
     items = [it for it in items if not _should_exclude(it)]
@@ -181,15 +186,25 @@ def render_email(
         deadline_values: list[RenderDeadline] = []
         for value in _safe_json_loads(it.deadlines_json or ""):
             if value.get("label") and value.get("date"):
+                urgency = deadline_urgency(str(value["date"]), run_date)
+                # 지난 일정은 일일 브리핑의 행동정보가 아니며, 오탐 시 삭선만
+                # 도배하는 문제가 있으므로 DB에는 보존하되 메일에서는 숨긴다.
+                if urgency == "expired":
+                    continue
                 deadline_values.append(
                     RenderDeadline(
                         label=str(value["label"]),
                         date=str(value["date"]),
-                        urgency=deadline_urgency(str(value["date"]), run_date),
+                        urgency=urgency,
                     )
                 )
         is_updated = bool(it.last_sent_at) and (it.sent_hash != it.content_hash)
         importance = (it.importance or "low")
+        published_at = it.published_at
+        if it.source == "scourt" and it.category == "case_law" and not published_at:
+            decision_date = parse_decision_date(it.raw_text)
+            if decision_date is not None:
+                published_at = decision_date.date().isoformat()
         # 고용노동부: 체불 + 제재 동시에 나오면 LOW
         if it.source == "moel" and it.title:
             t = it.title
@@ -210,7 +225,7 @@ def render_email(
                 source_name_ko=source_name_ko,
                 title=it.title,
                 url=it.url,
-                published_at=it.published_at,
+                published_at=published_at,
                 category_label=_category_label(it.category, it.source),
                 importance=importance,
                 reason=it.importance_reason or "",
@@ -385,6 +400,59 @@ def render_email(
     for k in list(by_importance.keys()):
         by_importance[k] = _group_scourt_press(by_importance[k])
 
+    # 주요판결(case_law)은 중요도별 섹션에 흩뿌리지 않고 선고일별 묶음으로
+    # 모은다. 각 사건의 중요도는 자식 태그로 보존하고 공식 번호순으로 정렬한다.
+    def _case_number(item: RenderItem) -> tuple[int, str]:
+        match = re.match(r"\s*(\d+)\s*[.]", item.title or "")
+        return (int(match.group(1)) if match else 10**9, item.title)
+
+    case_groups: dict[str, list[RenderItem]] = {}
+    for importance_key in ("high", "medium", "low"):
+        remaining: list[RenderItem] = []
+        for item in by_importance.get(importance_key, []):
+            if item.source_code == "scourt" and item.category_label == "주요판결":
+                case_groups.setdefault(item.published_at or "", []).append(item)
+            else:
+                remaining.append(item)
+        by_importance[importance_key] = remaining
+
+    court_items: list[RenderItem] = []
+    for decision_date, members in sorted(case_groups.items(), reverse=True):
+        members.sort(key=_case_number)
+        top = max(members, key=lambda member: member.relevance_score)
+        counts = {
+            level: sum(member.importance == level for member in members)
+            for level in ("high", "medium", "low")
+        }
+        count_text = " · ".join(
+            f"{level.upper()} {counts[level]}건"
+            for level in ("high", "medium", "low")
+            if counts[level]
+        )
+        company_count = sum(member.company_flag for member in members)
+        date_label = f"{decision_date} 선고" if decision_date else "선고일 확인 필요"
+        court_items.append(
+            RenderItem(
+                item_id=None,
+                source_code="scourt",
+                source_name_ko="대법원",
+                title=f"대법원 주요판결 · {date_label} {len(members)}건",
+                url=SCOURT_MAJOR_DECISIONS_LIST,
+                published_at=decision_date or None,
+                category_label="주요판결 묶음",
+                importance="medium",
+                reason=f"당사 관련 {company_count}건 · {count_text}",
+                summary=None,
+                is_updated=False,
+                attachments=[],
+                deadlines=[],
+                child_items=members,
+                relevance_score=top.relevance_score,
+                relevance_evidence=top.relevance_evidence,
+                company_flag=top.company_flag,
+            )
+        )
+
     # LOW 섹션: 신규 우선, 신규+변경 합쳐서 최대 15건만 표시
     # (정렬 키에서 신규(new_score=1)가 변경(0)보다 위에 오므로 [:15]로 자연스럽게 변경 항목 제외)
     if by_importance.get("low"):
@@ -393,6 +461,7 @@ def render_email(
     sections: list[RenderSection] = [
         RenderSection(label="HIGH", items=by_importance.get("high", [])),
         RenderSection(label="MEDIUM", items=by_importance.get("medium", [])),
+        RenderSection(label="COURT", items=court_items),
         RenderSection(label="LOW", items=by_importance.get("low", [])),
     ]
 

@@ -80,3 +80,25 @@ llm:
   model: "gpt-4o-mini"
   only_when_importance_at_least: "high"
 
+relevance:
+  enabled: false
+  snapshot_path: "data/company_relevance_snapshot.json"
+  life_terms:
+    - "미래에셋생명"
+    - "생명보험"
+    - "변액"
+    - "연금보험"
+    - "퇴직연금"
+    - "종신보험"
+  nonlife_terms:
+    - "자동차보험"
+    - "대차료"
+    - "대인배상"
+    - "대물배상"
+    - "화재보험"
+    - "보증보험"
+  term_weights:
+    "미래에셋생명": 60
+    "생명보험": 20
+    "변액": 30
+    "퇴직연금": 30

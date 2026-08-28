@@ -18,7 +18,7 @@ _BASE_WEIGHT = {"law": 20, "soft_law": 25}
 
 # 일반 기본법전: 판결문·보도자료에 의례적으로 인용되어 회사 특이성이 약함 → 할인
 _GENERIC_CODES = {
-    "헌법", "민법", "형법", "민사소송법", "민사소송규칙",
+    "헌법", "민법", "형법", "상법", "민사소송법", "민사소송규칙",
     "형사소송법", "형사소송규칙", "행정소송법", "행정절차법",
 }
 _GENERIC_BASE = 8
@@ -55,6 +55,23 @@ def _link_bonus(sagyu_links: int) -> int:
     return 0
 
 
+def _term_present(term: str, hay: str) -> bool:
+    term = _nfc(term)
+    if re.fullmatch(r"[A-Za-z0-9\-]+", term):
+        return re.search(
+            rf"(?<![A-Za-z0-9]){re.escape(term)}(?![A-Za-z0-9])", hay, re.I
+        ) is not None
+    return term.lower() in hay.lower()
+
+
+def sector_signals(text: str, cfg: RelevanceConfig) -> tuple[list[str], list[str]]:
+    """텍스트에서 생보 직접 신호와 손보 전용 신호를 분리한다."""
+    return (
+        [term for term in cfg.life_terms if _term_present(term, text)],
+        [term for term in cfg.nonlife_terms if _term_present(term, text)],
+    )
+
+
 @dataclass(frozen=True)
 class RelevanceResult:
     score: int              # 0~100
@@ -75,7 +92,7 @@ class RelevanceScorer:
 
     - L1: comp_matching_auto 스냅샷(감시법령 + 협회규정) 명칭 감지
     - L2: config의 생보 특화 키워드(term_weights)
-    점수는 shadow 기록용이며 노출(등급)에는 아직 반영하지 않는다.
+    점수는 중요도 등급과 독립적으로 계산하며, 등급 안의 정렬과 ★ 표시에 사용한다.
     """
 
     def __init__(self, *, snapshot_path: str | Path, cfg: RelevanceConfig):
@@ -167,15 +184,9 @@ class RelevanceScorer:
         # ── L2: 생보 특화 키워드 ──────────────────────────────────
         term_hits: list[str] = []
         term_score = 0
-        hay_lower = hay.lower()
         for term, w in self.cfg.term_weights.items():
             t = _nfc(term)
-            if re.fullmatch(r"[A-Za-z0-9\-]+", t):
-                # 영문 약어(GA, K-ICS 등)는 단어 경계 + 대소문자 구분 없이
-                if re.search(rf"(?<![A-Za-z0-9]){re.escape(t)}(?![A-Za-z0-9])", hay, re.I):
-                    term_hits.append(t)
-                    term_score += int(w)
-            elif t.lower() in hay_lower:
+            if _term_present(t, hay):
                 term_hits.append(t)
                 term_score += int(w)
         term_score = min(_TERM_AXIS_CAP, term_score)
@@ -186,6 +197,13 @@ class RelevanceScorer:
             else 0
         )
         score = min(100, law_score + term_score + primary_bonus)
+        life_hits, nonlife_hits = sector_signals(hay, self.cfg)
+        # 자동차보험·대차료 등 손보 전용 사안은 일반 보험어와 상법만으로
+        # 당사 관련 ★가 되지 않도록 제한한다. 생보 직접 신호가 함께 있으면
+        # 업권 공통 사안일 수 있으므로 제한하지 않는다.
+        nonlife_only = bool(nonlife_hits) and not life_hits
+        if nonlife_only:
+            score = min(score, 29)
 
         # ── 근거 문자열 ───────────────────────────────────────────
         parts: list[str] = []
@@ -204,6 +222,10 @@ class RelevanceScorer:
             parts.append("키워드: " + "·".join(term_hits[:6]))
         if primary_bonus:
             parts.append("입법·행정예고")
+        if life_hits:
+            parts.append("생보 신호: " + "·".join(life_hits[:5]))
+        if nonlife_only:
+            parts.append("손보 전용: " + "·".join(nonlife_hits[:5]))
         evidence = " | ".join(parts)
 
         return RelevanceResult(score=score, evidence=evidence)

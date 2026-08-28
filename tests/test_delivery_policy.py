@@ -2,9 +2,13 @@
 import sqlite3
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from briefing.cli import _enrich, _heuristic_scourt_digest_summary
+from briefing.config import load_config
 from briefing.db import init_db, mark_sent, mark_suppressed, select_pending_for_email
 from briefing.render import render_email
+from briefing.summarize import LlmResult
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +25,9 @@ def _insert_item(
     last_sent_at=None,
     relevance_score: int = 0,
     relevance_evidence=None,
+    category: str = "press",
+    title=None,
+    summary=None,
 ) -> None:
     conn.execute(
         """
@@ -29,13 +36,14 @@ def _insert_item(
           attachments_json, raw_text, content_hash, summary, importance,
           importance_reason, first_seen_at, last_seen_at, last_changed_at,
           sent_hash, last_sent_at, relevance_score, relevance_evidence
-        ) VALUES (?, ?, 'press', ?, ?, 'https://example.com', '2099-01-01',
-                  '[]', '본문', ?, NULL, ?, '분류 사유',
+        ) VALUES (?, ?, ?, ?, ?, 'https://example.com', '2099-01-01',
+                  '[]', '본문', ?, ?, ?, '분류 사유',
                   '2026-08-13T08:00:00+09:00', '2026-08-13T08:00:00+09:00',
                   '2026-08-13T08:00:00+09:00', ?, ?, ?, ?)
         """,
         (
-            item_id, source, item_id, f"제목 {item_id}", content_hash, importance,
+            item_id, source, category, item_id, title or f"제목 {item_id}",
+            content_hash, summary, importance,
             sent_hash, last_sent_at, relevance_score, relevance_evidence,
         ),
     )
@@ -119,6 +127,87 @@ class TestRenderedDeliveryPolicy(unittest.TestCase):
         self.assertNotIn("오늘의 검토 필요", result.html)
         self.assertNotIn('class="review-box"', result.html)
         self.assertNotIn("moel:hidden", result.html)
+
+    def test_legacy_court_library_cases_are_excluded(self):
+        _insert_item(
+            self.conn, item_id="scourt:1", source="scourt", category="case_law",
+            importance="high", title="1. 보험 관련 판결",
+        )
+        _insert_item(
+            self.conn, item_id="scourt:2", source="scourt", category="case_law",
+            importance="low", title="2. 일반 판결",
+        )
+        items = select_pending_for_email(self.conn, max_days_since_published=99999)
+        result = render_email(
+            items=items,
+            template_dir=ROOT / "templates",
+            subject="테스트",
+            run_date="2099-01-01T08:00:00+09:00",
+        )
+
+        self.assertEqual(result.visible_item_ids, ())
+        self.assertNotIn("1. 보험 관련 판결", result.html)
+        self.assertNotIn("2. 일반 판결", result.html)
+
+    def test_scourt_importance_digest_is_summarized(self):
+        _insert_item(
+            self.conn,
+            item_id="scourt:press:digest",
+            source="scourt",
+            category="press",
+            title="대법원 2099. 1. 1. 선고 중요판결 요지",
+        )
+        items = select_pending_for_email(self.conn, max_days_since_published=99999)
+        cfg = load_config(ROOT / "config.yaml")
+        with patch("briefing.cli.build_scorer", return_value=None), patch(
+            "briefing.cli.summarize_with_llm",
+            return_value=LlmResult(
+                importance="medium",
+                summary="판결 세 건의 핵심 쟁점을 정리한 자료임 / 민사·형사 쟁점이 포함됨 / 세부 법리는 원문에 제시됨",
+                reason="테스트",
+            ),
+        ):
+            _enrich(self.conn, cfg, items)
+
+        row = self.conn.execute(
+            "SELECT summary FROM items WHERE id = 'scourt:press:digest'"
+        ).fetchone()
+        self.assertIn("핵심 쟁점", row["summary"])
+
+    def test_scourt_digest_has_non_llm_fallback(self):
+        body = (
+            "대법원 중요판결 요지 2026다12345 손해배상 "
+            "[보험계약의 해석 기준이 문제된 사건] "
+            "2026도67890 사기 [고의의 인정 기준이 문제된 사건]"
+        )
+        summary = _heuristic_scourt_digest_summary(body)
+        self.assertIn("총 2건", summary)
+        self.assertIn("보험계약", summary)
+
+    def test_grouped_scourt_digest_displays_its_summary(self):
+        _insert_item(
+            self.conn,
+            item_id="scourt:press:digest",
+            source="scourt",
+            title="대법원 중요판결 요지",
+            summary="중요판결 세 건의 핵심 쟁점 요약임",
+        )
+        for number in (1, 2):
+            _insert_item(
+                self.conn,
+                item_id=f"scourt:press:{number}",
+                source="scourt",
+                title=f"개별 판결 {number}",
+            )
+        items = select_pending_for_email(self.conn, max_days_since_published=99999)
+        result = render_email(
+            items=items,
+            template_dir=ROOT / "templates",
+            subject="테스트",
+            run_date="2099-01-01T08:00:00+09:00",
+        )
+        self.assertIn("대법원 보도자료 · 2099-01-01 선고·결정 3건", result.html)
+        self.assertIn("중요판결 세 건의 핵심 쟁점 요약임", result.html)
 
 
 if __name__ == "__main__":

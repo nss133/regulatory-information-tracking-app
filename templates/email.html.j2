@@ -35,6 +35,7 @@
       }
       .sec-header-high   { color: #c00; border-color: #c00; }
       .sec-header-medium { color: #b45309; border-color: #b45309; }
+      .sec-header-court  { color: #334155; border-color: #64748b; }
       .sec-header-low    { color: #888; border-color: #ccc; }
 
       /* ── 아이템 ── */
@@ -58,6 +59,9 @@
       .tag-source  { background-color: #e8f0fe; color: #1a56db; }
       .tag-kind    { background-color: #f3f0ff; color: #6c3fc7; }
       .tag-new     { background-color: #e6f4ea; color: #1b6b3a; }
+      .tag-priority-high   { background-color: #fee2e2; color: #991b1b; }
+      .tag-priority-medium { background-color: #fef3c7; color: #92400e; }
+      .tag-priority-low    { background-color: #f3f4f6; color: #6b7280; }
       .item-date   { font-size: 12px; color: #aaa; vertical-align: middle; }
 
       /* ── 관련성 표시 (별만, 은은하게) ── */
@@ -93,7 +97,6 @@
       }
       .item-deadlines { margin: 3px 0; font-size: 12px; color: #7c2d12; }
       .deadline { display: inline-block; margin-right: 8px; font-weight: 600; }
-      .deadline-expired { color: #888; text-decoration: line-through; }
 
       /* ── 이유 (summary 없을 때) ── */
       .item-reason {
@@ -139,6 +142,7 @@
           <div class="sec-header sec-header-{{ sec_key }}">
             {%- if sec_key == 'high' -%}▲ HIGH
             {%- elif sec_key == 'medium' -%}◆ MEDIUM
+            {%- elif sec_key == 'court' -%}▣ 대법원 주요판결
             {%- else -%}● LOW
             {%- endif -%}
             &nbsp;<span style="font-weight:400; font-size:12px;">({{ sec.items|length }}건)</span>
@@ -193,6 +197,7 @@
                       <div class="item-meta">
                         <span class="tag tag-source">{{ child.source_name_ko }}</span>
                         <span class="tag tag-kind">{{ child.category_label }}</span>
+                        {% if sec_key == 'court' %}<span class="tag tag-priority-{{ child.importance }}">{{ child.importance | upper }}</span>{% endif %}
                         {% if not child.is_updated %}
                           <span class="tag tag-new">신규</span>
                         {% endif %}
@@ -201,7 +206,11 @@
                       <a class="item-title" href="{{ child.url }}">{% if child.company_flag %}<span class="star" title="{{ child.relevance_evidence }}">★</span> {% endif %}{{ child.title }}</a>
                       {% if child.company_flag and child.relevance_evidence %}<div class="item-relevance">★ 당사 관련: {{ child.relevance_evidence }}</div>{% endif %}
                       {% if child.deadlines|length > 0 %}<div class="item-deadlines">{% for deadline in child.deadlines %}<span class="deadline deadline-{{ deadline.urgency }}">{{ deadline.label }} {{ deadline.date }}</span>{% endfor %}</div>{% endif %}
-                      {% if child.reason %}<div class="item-reason">{{ child.reason }}</div>{% endif %}
+                      {% if child.summary %}
+                        <div class="item-summary">{{ child.summary }}</div>
+                      {% elif child.reason %}
+                        <div class="item-reason">{{ child.reason }}</div>
+                      {% endif %}
                       {% if child.attachments|length > 0 %}
                         <div class="item-attach">
                           첨부:

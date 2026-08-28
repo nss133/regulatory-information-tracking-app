@@ -42,7 +42,7 @@ from briefing.emailer import send_admin_alert, send_email, send_error_alert
 from briefing.extract import extract_main_text, extract_page_content
 from briefing.http import HttpClient
 from briefing.ranking import rank_item
-from briefing.relevance import build_score_text, build_scorer
+from briefing.relevance import build_score_text, build_scorer, sector_signals
 from briefing.jid_watch import (
     append_log as append_jid_log,
     build_citation_index,
@@ -116,6 +116,76 @@ def _heuristic_summary(body: str) -> str | None:
         return out
 
     return None
+
+
+def _is_scourt_digest_title(title: str | None) -> bool:
+    """대법원 판례속보의 선고일별 중요판결·결정 종합 자료인지 판정한다."""
+    return bool(_re.search(r"중요\s*(?:판결|결정)\s*요지", title or ""))
+
+
+def _heuristic_scourt_digest_summary(body: str) -> str | None:
+    """LLM을 사용할 수 없을 때 중요판결요지의 최소한의 사건별 개요를 만든다."""
+    text = (body or "").strip()
+    if not text:
+        return None
+    case_numbers = list(dict.fromkeys(_re.findall(r"20\d{2}[가-힣]{1,8}\d+", text)))
+    issues = []
+    for value in _re.findall(r"\[([^\[\]]{10,220})\]", text):
+        clean = " ".join(value.split()).strip()
+        if clean in {"민사", "형사", "특별", "가사", "행정"}:
+            continue
+        if clean not in issues:
+            issues.append(clean)
+        if len(issues) >= 3:
+            break
+    if not issues:
+        return _heuristic_summary(text)
+    count_text = f"총 {len(case_numbers)}건" if case_numbers else "복수 사건"
+    lines = [f"{count_text}의 중요판결·결정 요지를 묶은 자료임"]
+    lines.extend(f"주요 쟁점: {issue.rstrip('.')}임" for issue in issues)
+    return " / ".join(lines[:4])
+
+
+def _rank_scourt_item(*, title, raw_text, category, scourt_cfg, relevance_cfg):
+    """대법원 항목을 일반 법무 중요도와 보험 업권 적합성을 함께 분류한다."""
+    hay = f"{title or ''}\n{raw_text or ''}".lower()
+    has_low = any(k.lower() in hay for k in scourt_cfg.low_keywords)
+    life_hits, nonlife_hits = sector_signals(hay, relevance_cfg)
+    nonlife_only = bool(nonlife_hits) and not life_hits
+
+    # 약관·불공정·표시광고는 전 산업에 등장하므로 보험 문맥 없이
+    # 단독으로 '보험사 관련 HIGH'가 되지 않는다.
+    broad_high = {"약관", "불공정", "표시·광고"}
+    specific_high = any(
+        k.lower() in hay
+        for k in scourt_cfg.high_keywords
+        if k not in broad_high
+    )
+    has_insurance_context = "보험" in hay or bool(life_hits)
+    contextual_high = any(
+        k.lower() in hay for k in scourt_cfg.high_keywords if k in broad_high
+    ) and has_insurance_context
+    has_high = specific_high or contextual_high
+    has_medium = any(k.lower() in hay for k in scourt_cfg.medium_keywords)
+
+    if category == "press":
+        if "요지" in (title or ""):
+            return "medium", "대법원 보도자료(요지 종합)"
+        if has_low:
+            return "low", "대법원 보도자료(무관 주제)"
+        if has_high:
+            return "high", "대법원 보도자료(보험사 관련)"
+        return "medium", "대법원 보도자료"
+
+    if nonlife_only:
+        return "low", "대법원 판결(손해보험 전용)"
+    if has_low:
+        return "low", "대법원 판결(무관)"
+    if has_high:
+        return "high", "대법원 판결(보험사 관련)"
+    if has_medium:
+        return "medium", "대법원 판결(일반 법령)"
+    return "low", "대법원 판결(키워드 매칭 없음)"
 
 
 def _fetch_all(cfg) -> tuple[list, list[str], dict[str, tuple[int, str | None, float]]]:
@@ -356,7 +426,7 @@ def _enrich(conn, cfg, items) -> None:
     }
     _llm_sleep = _llm_sleep_by_provider.get(cfg.llm.provider, 1.0)
 
-    # 미래에셋생명 관련성(relevance) 채점기 — shadow 기록 전용(노출 미반영).
+    # 미래에셋생명 관련성 채점기 — 등급 안 정렬과 ★ 표시에 사용한다.
     # 스냅샷 부재·비활성 시 None이 되어 파이프라인은 그대로 진행.
     scorer = build_scorer(cfg)
 
@@ -381,7 +451,16 @@ def _enrich(conn, cfg, items) -> None:
         reason = rank.reason
         summary = None
         deadline_text = f"{it.title or ''}\n{it.raw_text or ''}"
-        deadline_json = deadlines_to_json(extract_deadlines(deadline_text))
+        # 시행일·의견제출일은 규범 변경 공고에만 의미가 있다. 판결문과 일반
+        # 보도자료의 과거 법령 연혁을 현재 일정으로 오인하지 않도록 범위를 제한한다.
+        deadline_labels = (
+            {"의견제출", "시행일", "신청기한"}
+            if it.category in ("legislation", "admin_notice")
+            else set()
+        )
+        deadline_json = deadlines_to_json(
+            extract_deadlines(deadline_text, allowed_labels=deadline_labels)
+        )
         body = it.raw_text or ""
         attachment_links = []
 
@@ -394,7 +473,10 @@ def _enrich(conn, cfg, items) -> None:
                     body = page_body
                     update_body_text(conn, item_id=it.id, body_text=page_body)
                 deadline_json = deadlines_to_json(
-                    extract_deadlines(f"{deadline_text}\n{page_body}")
+                    extract_deadlines(
+                        f"{deadline_text}\n{page_body}",
+                        allowed_labels=deadline_labels,
+                    )
                 )
                 for label, att_url in attachment_links:
                     upsert_attachment_record(
@@ -413,7 +495,8 @@ def _enrich(conn, cfg, items) -> None:
             importance = "medium"
             reason = "국회 법사위 회부"
 
-        # 대법원은 요약 없이 제목/중요도/첨부만 사용. 키워드 기반 분류:
+        # 대법원은 키워드 기반으로 분류하되, 선고일별 중요판결·결정 요지는
+        # 여러 사건이 한 제목에 묶이므로 LLM 요약을 붙여 가시성을 확보한다.
         # 제목이 서술형('일시적으로 2주택을 보유한 원고가 종전 주택의 양도에…')이라
         # 제목만으로는 세금·행정 등 무관 주제를 놓치기 쉬우므로, 본문(raw_text)까지
         # 함께 매칭한다(low → high → medium 순).
@@ -422,41 +505,44 @@ def _enrich(conn, cfg, items) -> None:
         #    low_keywords 적용으로 차단. 종전엔 press에 low를 적용하지 않았음)
         # - 주요판결(case_law): low → high → medium → 기본 LOW
         if it.source == "scourt":
-            scr = cfg.scourt_ranking
-            hay = f"{it.title or ''}\n{it.raw_text or ''}".lower()
-            has_low = any(k.lower() in hay for k in scr.low_keywords)
-            has_high = any(k.lower() in hay for k in scr.high_keywords)
-            has_medium = any(k.lower() in hay for k in scr.medium_keywords)
-            if it.category == "press":
-                if "요지" in (it.title or ""):
-                    # 그 주의 중요판결/결정을 한데 모은 '요지(종합)' 보도자료.
-                    # 모든 주제를 집계해 키워드가 뒤섞이므로 분류하지 않고
-                    # MEDIUM 색인으로 둔다(개별 사건은 별도 보도자료로 들어옴).
-                    importance, reason = "medium", "대법원 보도자료(요지 종합)"
-                elif has_low:
-                    importance, reason = "low", "대법원 보도자료(무관 주제)"
-                elif has_high:
-                    importance, reason = "high", "대법원 보도자료(보험사 관련)"
-                else:
-                    importance, reason = "medium", "대법원 보도자료"
-            else:
-                if has_low:
-                    importance, reason = "low", "대법원 판결(무관)"
-                elif has_high:
-                    importance, reason = "high", "대법원 판결(보험사 관련)"
-                elif has_medium:
-                    importance, reason = "medium", "대법원 판결(일반 법령)"
-                else:
-                    importance, reason = "low", "대법원 판결(키워드 매칭 없음)"
+            importance, reason = _rank_scourt_item(
+                title=it.title,
+                raw_text=it.raw_text,
+                category=it.category,
+                scourt_cfg=cfg.scourt_ranking,
+                relevance_cfg=cfg.relevance,
+            )
+            final_summary = it.summary
+            if (
+                it.category == "press"
+                and _is_scourt_digest_title(it.title)
+                and not final_summary
+            ):
+                if should_call_llm(
+                    llm=cfg.llm, current_importance=importance
+                ):
+                    if _llm_call_count > 0 and _llm_sleep > 0:
+                        _time.sleep(_llm_sleep)
+                    spec = SOURCE_SPECS.get(it.source)
+                    res = summarize_with_llm(
+                        llm=cfg.llm,
+                        title=it.title,
+                        body=body,
+                        source_name_ko=(spec.name_ko if spec else it.source),
+                    )
+                    _llm_call_count += 1
+                    final_summary = res.summary
+                if not final_summary:
+                    final_summary = _heuristic_scourt_digest_summary(body)
             update_item_enrichment(
                 conn,
                 item_id=it.id,
                 importance=importance,
                 importance_reason=reason,
-                summary=None,
+                summary=final_summary,
                 deadlines_json=deadline_json,
             )
-            _save_relevance(it, it.summary)
+            _save_relevance(it, final_summary)
             continue
 
         if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
@@ -489,7 +575,10 @@ def _enrich(conn, cfg, items) -> None:
             if body:
                 update_body_text(conn, item_id=it.id, body_text=body)
                 deadline_json = deadlines_to_json(
-                    extract_deadlines(f"{it.title or ''}\n{it.raw_text or ''}\n{body}")
+                    extract_deadlines(
+                        f"{it.title or ''}\n{it.raw_text or ''}\n{body}",
+                        allowed_labels=deadline_labels,
+                    )
                 )
             # 첨부파일 링크 등록 (pending 상태로)
             for label, att_url in attachment_links:

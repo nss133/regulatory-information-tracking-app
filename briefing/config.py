@@ -124,10 +124,12 @@ class LlmConfig:
 
 @dataclass(frozen=True)
 class RelevanceConfig:
-    """미래에셋생명 관련성(relevance) 채점 설정. shadow 기록용 — 노출 미반영."""
+    """미래에셋생명 관련성 채점 설정. 정렬과 ★ 표시에 사용한다."""
     enabled: bool
     snapshot_path: str                  # export_company_law_snapshot.py 산출물
     term_weights: dict[str, int]        # 생보 특화 키워드 → 가중치
+    life_terms: list[str]               # 생명보험 직접 신호
+    nonlife_terms: list[str]            # 손해보험 전용 신호
 
 
 @dataclass(frozen=True)
@@ -282,6 +284,8 @@ def load_config(path: str | Path) -> AppConfig:
                 str(k): int(v)
                 for k, v in (relevance_raw.get("term_weights") or {}).items()
             },
+            life_terms=[str(k) for k in relevance_raw.get("life_terms", [])],
+            nonlife_terms=[str(k) for k in relevance_raw.get("nonlife_terms", [])],
         ),
         jid_watch=JidWatchConfig(
             enabled=bool(_get(jid_watch_raw, "enabled", False)),
@@ -292,4 +296,3 @@ def load_config(path: str | Path) -> AppConfig:
             log_note=str(_get(raw.get("sanity", {}), "log_note", "")),
         ),
     )
-
