@@ -133,6 +133,20 @@ class RelevanceConfig:
 
 
 @dataclass(frozen=True)
+class TaggingConfig:
+    """법률 태그 shadow 계층. 메일 중요도·관련성에는 관여하지 않는다."""
+    enabled: bool
+    node_path: str
+    bridge_path: str
+    manifest_path: str
+    trusted_body_sources: list[str]
+    max_text_chars: int
+    batch_size: int
+    timeout_seconds: int
+    timezone: str
+
+
+@dataclass(frozen=True)
 class ArchiveConfig:
     enabled: bool
     kordoc_cli_path: str
@@ -170,6 +184,7 @@ class AppConfig:
     llm: LlmConfig
     archive: ArchiveConfig
     relevance: RelevanceConfig
+    tagging: TaggingConfig
     jid_watch: JidWatchConfig
     sanity: SanityConfig
 
@@ -210,6 +225,7 @@ def load_config(path: str | Path) -> AppConfig:
     llm_raw = _get(raw, "llm")
     archive_raw = raw.get("archive", {})
     relevance_raw = raw.get("relevance", {})
+    tagging_raw = raw.get("tagging", {})
     jid_watch_raw = raw.get("jid_watch", {})
 
     _default_kordoc = (
@@ -286,6 +302,28 @@ def load_config(path: str | Path) -> AppConfig:
             },
             life_terms=[str(k) for k in relevance_raw.get("life_terms", [])],
             nonlife_terms=[str(k) for k in relevance_raw.get("nonlife_terms", [])],
+        ),
+        tagging=TaggingConfig(
+            enabled=bool(_get(tagging_raw, "enabled", False)),
+            node_path=str(_get(tagging_raw, "node_path", "node")),
+            bridge_path=str(
+                _get(tagging_raw, "bridge_path", "scripts/news_tag_bridge.mjs")
+            ),
+            manifest_path=str(
+                _get(
+                    tagging_raw,
+                    "manifest_path",
+                    "vendor/legal-opinion-tagger/manifest.json",
+                )
+            ),
+            trusted_body_sources=[
+                str(value)
+                for value in tagging_raw.get("trusted_body_sources", ["scourt", "na"])
+            ],
+            max_text_chars=int(_get(tagging_raw, "max_text_chars", 12000)),
+            batch_size=int(_get(tagging_raw, "batch_size", 200)),
+            timeout_seconds=int(_get(tagging_raw, "timeout_seconds", 120)),
+            timezone=str(_get(raw, "timezone", "Asia/Seoul")),
         ),
         jid_watch=JidWatchConfig(
             enabled=bool(_get(jid_watch_raw, "enabled", False)),

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "profileVersion": "news-v1.0.0",
+  "producerPackage": "legal-opinion-tagger",
+  "producerVersion": "0.6.2",
+  "producerCommit": "8d17a98ad3103cc8d17e122593823fb8e3bcb938",
+  "sourceFiles": {
+    "tag-engine.mjs": "7498caf689269ae900e771c28cbd768f098cb05a16ac5f02021f170acee01f58",
+    "issue-card-data.mjs": "b7856a8493e8e8575ce31a57ef3efbbbdd456075f4513227cb24ea4e6155b261"
+  },
+  "taxonomySha256": "b7856a8493e8e8575ce31a57ef3efbbbdd456075f4513227cb24ea4e6155b261",
+  "inputPolicy": {
+    "title": "title",
+    "summary": "request",
+    "trustedBody": "departmentOpinion",
+    "result": "unused"
+  },
+  "notes": [
+    "Vendored from committed upstream files; the upstream dirty worktree is not imported at runtime.",
+    "Tags are a shadow legal_signature and never modify importance, relevance, suppression, or delivery state."
+  ]
+}

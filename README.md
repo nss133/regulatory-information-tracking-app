@@ -161,3 +161,49 @@ python3 scripts/export_company_law_snapshot.py
 # 가중치·lexicon 변경 후 전체 재채점 (오프라인, 수 초)
 python -m briefing relevance-backfill --config config.yaml
 ```
+
+## 법률 태그 shadow 인덱스
+
+`legal-opinion-tagger`의 커밋된 엔진·쟁점카드 스냅샷을 이용해 법령·조문·쟁점 태그를
+별도 정규화 테이블에 저장합니다. 이 태그는 검색과 사람 검수에만 쓰이며 기존 중요도,
+★ 관련성, 메일 노출·발송 판단을 바꾸지 않습니다. 엔진 파일은
+`vendor/legal-opinion-tagger/manifest.json`의 SHA-256과 일치할 때만 실행됩니다.
+
+```bash
+# 전체 DB shadow 태깅(입력·profile 해시가 같은 항목은 자동 건너뜀)
+python -m briefing tag-backfill --config config.yaml
+
+# 다의어·저신뢰 태그와 미태깅 ★ 항목 확인
+python -m briefing tag-review-queue --config config.yaml --limit 50
+
+# 태그 기반 검색(여러 --tag를 쓰고 --match-all로 AND 검색 가능)
+python -m briefing tag-search --config config.yaml --tag 보험업법 --tag 설명의무 --match-all
+
+# 사람 검수 이력 기록
+python -m briefing tag-review --config config.yaml \
+  --item-id ITEM_ID --tag-id TAG_ID --decision accept --reason-code direct_evidence
+```
+
+MCP `news_search`도 `tags`, `tag_types`, `tag_mode(any|all)` 필터를 지원합니다. 검색어 없이
+태그만 지정할 수도 있고, 검색어와 태그를 함께 주면 FTS 결과와 AND 결합합니다. 태그는
+후보 탐색용이며 실제 인용은 계속 원문·첨부 발췌와 URL로 확인해야 합니다.
+
+## J-ID 영향후보 검수 큐
+
+규제동향에서 기존 판단의 근거와 겹치는 대상을 별도 큐에 저장합니다. 같은 법령명이
+나왔다는 이유만으로 개별 J-ID에 영향이 있다고 보지 않고, `정확 조문`·`정확 판례`를
+우선 표시합니다. 상태는 `unreviewed`, `no_effect`, `affected`, `deferred`이며 모든
+사람 판정은 이력으로 남습니다. `affected`로 판정해도 J-ID 원문은 자동 수정하지 않습니다.
+
+```bash
+# 최근 60일 데이터로 최초 큐 구성
+python -m briefing jid-impact-backfill --config config.yaml --days 60
+
+# 미검수 후보(정확 일치 우선) / 정확 일치만 보기
+python -m briefing jid-impact-queue --config config.yaml
+python -m briefing jid-impact-queue --config config.yaml --exact-only
+
+# 검수 결과와 사유 기록
+python -m briefing jid-impact-review --config config.yaml \
+  --candidate-id impact_... --decision affected --reason "개정 조문이 기존 결론의 전제 변경"
+```

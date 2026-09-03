@@ -310,6 +310,19 @@ relevance:
     "책임준비금": 15
     "보험부채": 15
 
+# 법률 태그 shadow 계층. importance·relevance·메일 노출에는 사용하지 않는다.
+tagging:
+  enabled: true
+  node_path: "/usr/local/bin/node"
+  bridge_path: "scripts/news_tag_bridge.mjs"
+  manifest_path: "vendor/legal-opinion-tagger/manifest.json"
+  trusted_body_sources:
+    - scourt
+    - na
+  max_text_chars: 12000
+  batch_size: 200
+  timeout_seconds: 120
+
 # published_at이 N일 이내인 항목만 발송 (오래된 자료 제외). 기본 7일
 filter:
   max_days_since_published: 7

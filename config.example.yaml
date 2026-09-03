@@ -102,3 +102,14 @@ relevance:
     "생명보험": 20
     "변액": 30
     "퇴직연금": 30
+
+# 구조화 법률 태그를 별도 테이블에만 저장하는 shadow 모드.
+tagging:
+  enabled: false
+  node_path: "node"
+  bridge_path: "scripts/news_tag_bridge.mjs"
+  manifest_path: "vendor/legal-opinion-tagger/manifest.json"
+  trusted_body_sources: [scourt, na]
+  max_text_chars: 12000
+  batch_size: 200
+  timeout_seconds: 120

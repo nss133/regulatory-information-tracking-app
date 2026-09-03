@@ -21,7 +21,7 @@ DB_PATH = os.environ.get(
     "/Users/nsss/Library/Mobile Documents/com~apple~CloudDocs/cursor/news clipping/data/briefing.sqlite3",
 )
 
-SERVER_INFO = {"name": "news-search", "version": "1.0.0"}
+SERVER_INFO = {"name": "news-search", "version": "1.1.0"}
 
 # 소스코드 → 한글명(표시용). 미등록 코드는 그대로 노출.
 SOURCE_KO = {
@@ -59,8 +59,14 @@ TOOLS = [{
             "source": {"type": "array", "items": {"type": "string"},
                        "description": "소스 필터(예: ['fsc','fss','scourt'])"},
             "since": {"type": "string", "description": "이 날짜 이후만(YYYY-MM-DD)"},
+            "tags": {"type": "array", "items": {"type": "string"},
+                     "description": "법률 태그 필터(예: ['보험업법','설명의무']). #은 생략 가능"},
+            "tag_types": {"type": "array", "items": {"type": "string"},
+                          "description": "태그 유형 필터(law·provision·issue·legal_relation 등)"},
+            "tag_mode": {"type": "string", "enum": ["any", "all"],
+                         "description": "여러 태그 중 하나(any, 기본) 또는 모두(all)"},
         },
-        "required": ["query"],
+        "required": [],
     },
 }]
 
@@ -87,12 +93,21 @@ def _build_match(query: str) -> str:
 
 def _search(args: dict) -> str:
     query = (args.get("query") or "").strip()
-    if not query:
-        return "검색어가 비어 있음."
+    tags = [str(value).lstrip("#").strip() for value in (args.get("tags") or []) if str(value).strip()]
+    if not query and not tags:
+        return "검색어 또는 법률 태그가 필요함."
     k = int(args.get("top_k") or 8)
+    has_tag_schema = _db().execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='item_tags'"
+    ).fetchone() is not None
+    if tags and not has_tag_schema:
+        return "법률 태그 인덱스가 아직 초기화되지 않음. tag-backfill을 먼저 실행할 것."
 
-    where = ["content_fts MATCH :q"]
-    params = {"q": _build_match(query), "k": k}
+    where = []
+    params = {"k": k}
+    if query:
+        where.append("content_fts MATCH :q")
+        params["q"] = _build_match(query)
 
     def _in(col, key, vals):
         vals = [v for v in (vals or []) if v]
@@ -112,20 +127,70 @@ def _search(args: dict) -> str:
         params["since"] = args["since"]
         where.append("substr(i.published_at,1,10) >= :since")
 
+    if tags:
+        tag_names = []
+        for i, value in enumerate(tags):
+            key = f"tag{i}"
+            params[key] = value
+            tag_names.append(f":{key}")
+        tag_type_clause = ""
+        tag_types = [str(value).strip() for value in (args.get("tag_types") or []) if str(value).strip()]
+        if tag_types:
+            type_names = []
+            for i, value in enumerate(tag_types):
+                key = f"tagtype{i}"
+                params[key] = value
+                type_names.append(f":{key}")
+            tag_type_clause = f"AND tr2.tag_type IN ({','.join(type_names)})"
+        having = ""
+        if args.get("tag_mode") == "all":
+            params["tag_count"] = len(set(tags))
+            having = "HAVING COUNT(DISTINCT tr2.canonical) = :tag_count"
+        where.append(
+            f"""i.id IN (
+              SELECT it2.item_id
+              FROM item_tags it2
+              JOIN tag_registry tr2 ON tr2.tag_id = it2.tag_id
+              WHERE (tr2.canonical IN ({','.join(tag_names)})
+                     OR LTRIM(tr2.hashtag, '#') IN ({','.join(tag_names)}))
+                {tag_type_clause}
+              GROUP BY it2.item_id
+              {having}
+            )"""
+        )
+
+    from_sql = (
+        "FROM content_fts JOIN items i ON i.id = content_fts.item_id"
+        if query else "FROM items i"
+    )
+    body_snip = (
+        "snippet(content_fts, 2, '《', '》', ' … ', 18)" if query else "''"
+    )
+    attach_snip = (
+        "snippet(content_fts, 3, '《', '》', ' … ', 18)" if query else "''"
+    )
+    order_sql = "rank" if query else "COALESCE(i.published_at, '0000-00-00') DESC"
+    legal_tags_sql = (
+        """(SELECT GROUP_CONCAT(tr.hashtag, ' ')
+             FROM item_tags it JOIN tag_registry tr ON tr.tag_id = it.tag_id
+             WHERE it.item_id = i.id)"""
+        if has_tag_schema else "NULL"
+    )
     sql = f"""
         SELECT i.id, i.source, i.category, i.title, i.url,
                i.published_at, i.importance, i.source_item_key,
-               snippet(content_fts, 2, '《', '》', ' … ', 18) AS body_snip,
-               snippet(content_fts, 3, '《', '》', ' … ', 18) AS attach_snip
-        FROM content_fts
-        JOIN items i ON i.id = content_fts.item_id
+               {body_snip} AS body_snip,
+               {attach_snip} AS attach_snip,
+               {legal_tags_sql} AS legal_tags
+        {from_sql}
         WHERE {' AND '.join(where)}
-        ORDER BY rank
+        ORDER BY {order_sql}
         LIMIT :k
     """
     rows = _db().execute(sql, params).fetchall()
     if not rows:
-        return f"질의: {query}\n검색결과 0건. (검색어를 3자 이상으로, 또는 필터를 완화해 볼 것)"
+        label = query or "태그 " + ", ".join(tags)
+        return f"질의: {label}\n검색결과 0건. (검색어·태그 또는 필터를 완화해 볼 것)"
 
     blocks = []
     for n, r in enumerate(rows, 1):
@@ -135,16 +200,18 @@ def _search(args: dict) -> str:
         snip = (r["attach_snip"] or "").strip() or (r["body_snip"] or "").strip()
         snip = " ".join(snip.split())[:400]
         cite = r["source_item_key"] or r["id"]
+        tag_line = f"\n  법률태그: {r['legal_tags']}" if r["legal_tags"] else ""
         blocks.append(
             f"[{n}] {src} · {r['published_at'] or '-'} · 중요도 {imp} · [등급:{grade}]\n"
             f"  제목: {r['title']}\n"
             f"  발췌: {snip}\n"
-            f"  URL: {r['url'] or '-'}\n"
+            f"  URL: {r['url'] or '-'}{tag_line}\n"
             f"  인용키: {r['source']}/{cite}"
         )
     return (
-        f"질의: {query}  (검증자료 채널 · 정부동향)\n"
-        f"검색결과 {len(rows)}건 (FTS rank순):\n\n" + "\n\n".join(blocks)
+        f"질의: {query or '태그 ' + ', '.join(tags)}  (검증자료 채널 · 정부동향)\n"
+        f"검색결과 {len(rows)}건 ({'FTS rank순' if query else '최신순'}):\n\n"
+        + "\n\n".join(blocks)
     )
 
 

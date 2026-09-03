@@ -141,6 +141,188 @@ def init_db(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_content_item ON item_content(item_id)"
     )
 
+    # 법률 태그는 importance·relevance·발송 상태와 분리된 shadow 계층이다.
+    # 현재 profile의 결과만 item_tags에 두고, 사람 판정은 tag_reviews에 이력으로 보존한다.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tag_registry (
+          tag_id TEXT PRIMARY KEY,
+          canonical TEXT NOT NULL,
+          hashtag TEXT NOT NULL,
+          tag_type TEXT NOT NULL,
+          tag_type_label TEXT,
+          aliases_json TEXT NOT NULL DEFAULT '[]',
+          producer_package TEXT NOT NULL,
+          producer_version TEXT NOT NULL,
+          producer_commit TEXT NOT NULL,
+          profile_version TEXT NOT NULL,
+          taxonomy_sha256 TEXT NOT NULL,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          UNIQUE(tag_type, canonical)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tag_registry_hashtag ON tag_registry(hashtag)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tag_registry_type ON tag_registry(tag_type)")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS item_tag_state (
+          item_id TEXT PRIMARY KEY,
+          input_hash TEXT NOT NULL,
+          profile_version TEXT NOT NULL,
+          taxonomy_sha256 TEXT NOT NULL,
+          status TEXT NOT NULL,
+          tag_count INTEGER NOT NULL DEFAULT 0,
+          error TEXT,
+          tagged_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_item_tag_state_status ON item_tag_state(status)")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS item_tags (
+          item_id TEXT NOT NULL,
+          tag_id TEXT NOT NULL,
+          score INTEGER NOT NULL,
+          confidence TEXT,
+          candidate_status TEXT NOT NULL,
+          source_fields_json TEXT NOT NULL DEFAULT '[]',
+          evidence_json TEXT NOT NULL DEFAULT '[]',
+          aliases_json TEXT NOT NULL DEFAULT '[]',
+          occurrences INTEGER NOT NULL DEFAULT 0,
+          strict_match INTEGER NOT NULL DEFAULT 0,
+          profile_version TEXT NOT NULL,
+          taxonomy_sha256 TEXT NOT NULL,
+          input_hash TEXT NOT NULL,
+          tagged_at TEXT NOT NULL,
+          PRIMARY KEY (item_id, tag_id)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id, score DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_item_tags_item ON item_tags(item_id, score DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_item_tags_review ON item_tags(candidate_status, confidence)")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS item_tag_relations (
+          item_id TEXT NOT NULL,
+          source_tag_id TEXT NOT NULL,
+          target_tag_id TEXT NOT NULL,
+          relation_type TEXT NOT NULL,
+          score INTEGER NOT NULL,
+          evidence_text TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'candidate',
+          profile_version TEXT NOT NULL,
+          taxonomy_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (
+            item_id, source_tag_id, target_tag_id, relation_type, evidence_text
+          )
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_item_tag_relations_item ON item_tag_relations(item_id)")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tag_reviews (
+          review_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          item_id TEXT NOT NULL,
+          tag_id TEXT,
+          decision TEXT NOT NULL CHECK(decision IN ('accept','reject','edit','missed')),
+          replacement_tag_id TEXT,
+          reason_code TEXT,
+          note TEXT,
+          reviewer TEXT NOT NULL,
+          reviewed_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tag_reviews_item ON tag_reviews(item_id, tag_id, review_id DESC)")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tagging_runs (
+          run_id TEXT PRIMARY KEY,
+          started_at TEXT NOT NULL,
+          completed_at TEXT,
+          status TEXT NOT NULL,
+          mode TEXT NOT NULL,
+          selected_count INTEGER NOT NULL DEFAULT 0,
+          processed_count INTEGER NOT NULL DEFAULT 0,
+          tagged_item_count INTEGER NOT NULL DEFAULT 0,
+          tag_count INTEGER NOT NULL DEFAULT 0,
+          error_count INTEGER NOT NULL DEFAULT 0,
+          profile_version TEXT NOT NULL,
+          taxonomy_sha256 TEXT NOT NULL,
+          producer_commit TEXT NOT NULL,
+          error TEXT
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tagging_runs_started ON tagging_runs(started_at)")
+
+    # 규제동향과 기존 판단 근거의 겹침을 사람 검수 가능한 구조화 큐로 보존한다.
+    # exact_article/exact_case만 개별 J-ID를 가리키며 law_only는 광역 후보로 분리한다.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS jid_impact_candidates (
+          candidate_id TEXT PRIMARY KEY,
+          item_id TEXT NOT NULL,
+          item_content_hash TEXT NOT NULL,
+          item_title TEXT NOT NULL,
+          item_url TEXT,
+          match_level TEXT NOT NULL CHECK(
+            match_level IN ('exact_article', 'exact_case', 'law_only')
+          ),
+          priority INTEGER NOT NULL,
+          law_name TEXT,
+          article TEXT,
+          case_number TEXT,
+          jid TEXT,
+          jid_stem TEXT,
+          related_jid_count INTEGER NOT NULL DEFAULT 0,
+          evidence_text TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'unreviewed' CHECK(
+            status IN ('unreviewed', 'no_effect', 'affected', 'deferred')
+          ),
+          first_detected_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          detection_count INTEGER NOT NULL DEFAULT 1,
+          source_run_id TEXT,
+          reviewed_at TEXT,
+          reviewer TEXT,
+          review_reason TEXT
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_jid_impact_queue "
+        "ON jid_impact_candidates(status, priority, last_seen_at DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_jid_impact_jid "
+        "ON jid_impact_candidates(jid, status)"
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS jid_impact_reviews (
+          review_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          candidate_id TEXT NOT NULL,
+          decision TEXT NOT NULL CHECK(
+            decision IN ('unreviewed', 'no_effect', 'affected', 'deferred')
+          ),
+          reason TEXT NOT NULL,
+          reviewer TEXT NOT NULL,
+          reviewed_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_jid_impact_reviews_candidate "
+        "ON jid_impact_reviews(candidate_id, review_id DESC)"
+    )
+
     # 한 번의 자동 실행·메일 발송을 배치 단위로 추적한다. SMTP 접수와 items의
     # 발송 표시 사이에서 프로세스가 중단돼도 모호한 상태를 보존해 중복을 막는다.
     conn.execute(

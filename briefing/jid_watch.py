@@ -11,9 +11,13 @@ vault의 판단 파일(J-*.md) frontmatter `근거:` 항목에서 법령·조문
 """
 from __future__ import annotations
 
+import hashlib
 import re
+import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from briefing.utils import now_iso
 
 # ── 트리거 게이트: 규범 변화 신호 ──────────────────────────────
 TRIGGER_CATEGORIES = {"legislation", "admin_notice", "case_law"}
@@ -175,12 +179,27 @@ def build_citation_index(judgments_dir: str | Path) -> CitationIndex:
 
 
 @dataclass
+class ImpactMatch:
+    match_level: str
+    priority: int
+    evidence_text: str
+    law_name: str | None = None
+    article: str | None = None
+    case_number: str | None = None
+    jid: str | None = None
+    jid_stem: str | None = None
+    related_jid_count: int = 0
+
+
+@dataclass
 class ImpactAlert:
     item_id: str
     item_title: str
     item_url: str
     lines: list[str]        # 이메일용(플레인 텍스트)
     vault_lines: list[str]  # vault 로그용([[위키링크]])
+    item_content_hash: str = ""
+    matches: list[ImpactMatch] = field(default_factory=list)
 
 
 # 법령명 등장 위치 뒤 이 거리(정규화 문자 수) 안의 "제N조"만 그 법령의 조문으로 인정.
@@ -204,8 +223,12 @@ def _articles_near(norm_text: str, variant: str) -> set[str]:
 def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
     alerts: list[ImpactAlert] = []
     for it in pending:
-        title = it.title or ""
         category = getattr(it, "category", "") or ""
+        # 수집 중단된 법원도서관 개별 판결은 대법원 판례속보와 중복된다.
+        # 메일 노출 정책과 동일하게 영향 큐에서도 제외한다.
+        if getattr(it, "source", "") == "scourt" and category == "case_law":
+            continue
+        title = it.title or ""
         if category not in TRIGGER_CATEGORIES and not any(
             kw in title for kw in TRIGGER_TITLE_KEYWORDS
         ):
@@ -216,6 +239,7 @@ def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
 
         lines: list[str] = []
         vault_lines: list[str] = []
+        matches: list[ImpactMatch] = []
 
         # ── 법령 매치 (조문은 법령명 근접 범위에서만 수집) ──
         matched_canons: dict[str, set[str]] = {}
@@ -236,10 +260,24 @@ def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
             }
             exact = [(jid, refs[jid], arts) for jid, arts in hit_articles_by_jid.items() if arts]
             if exact:
-                for jid, ref, arts in sorted(exact)[:MAX_LISTED_JIDS]:
+                for position, (jid, ref, arts) in enumerate(sorted(exact)):
                     art_s = ", ".join(f"§{a}" for a in sorted(arts))
-                    lines.append(f"{display} {art_s} 일치 → {ref.stem}")
-                    vault_lines.append(f"{display} {art_s} 일치 → [[{ref.stem}]]")
+                    evidence = f"{display} {art_s} 일치 → {ref.stem}"
+                    matches.append(
+                        ImpactMatch(
+                            match_level="exact_article",
+                            priority=1,
+                            law_name=display,
+                            article=", ".join(sorted(arts)),
+                            jid=jid,
+                            jid_stem=ref.stem,
+                            related_jid_count=1,
+                            evidence_text=evidence,
+                        )
+                    )
+                    if position < MAX_LISTED_JIDS:
+                        lines.append(evidence)
+                        vault_lines.append(f"{display} {art_s} 일치 → [[{ref.stem}]]")
                 if len(exact) > MAX_LISTED_JIDS:
                     lines.append(f"  … 외 조문 일치 {len(exact) - MAX_LISTED_JIDS}건")
                     vault_lines.append(f"  … 외 조문 일치 {len(exact) - MAX_LISTED_JIDS}건")
@@ -247,23 +285,52 @@ def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
                 msg = f"{display} — 인용 판단 {len(refs)}건 (조문 미특정, 개별 확인 필요)"
                 lines.append(msg)
                 vault_lines.append(msg)
+                matches.append(
+                    ImpactMatch(
+                        match_level="law_only",
+                        priority=3,
+                        law_name=display,
+                        related_jid_count=len(refs),
+                        evidence_text=msg,
+                    )
+                )
             else:
                 listed = sorted(refs.values(), key=lambda r: r.jid)[:MAX_LISTED_JIDS]
                 rest = len(refs) - len(listed)
                 suffix = f" 외 {rest}건" if rest > 0 else ""
-                lines.append(
-                    f"{display} → " + ", ".join(r.stem for r in listed) + suffix
-                )
+                msg = f"{display} → " + ", ".join(r.stem for r in listed) + suffix
+                lines.append(msg)
                 vault_lines.append(
                     f"{display} → " + ", ".join(f"[[{r.stem}]]" for r in listed) + suffix
+                )
+                matches.append(
+                    ImpactMatch(
+                        match_level="law_only",
+                        priority=3,
+                        law_name=display,
+                        related_jid_count=len(refs),
+                        evidence_text=msg,
+                    )
                 )
 
         # ── 판례 매치 (항상 고신호) ──
         for case_no in sorted(set(_norm(m) for m in _CASE_NO_RE.findall(text))):
             refs = idx.case_to_jids.get(case_no, {})
             for ref in sorted(refs.values(), key=lambda r: r.jid):
-                lines.append(f"판례 {case_no} 인용 → {ref.stem}")
+                evidence = f"판례 {case_no} 인용 → {ref.stem}"
+                lines.append(evidence)
                 vault_lines.append(f"판례 {case_no} 인용 → [[{ref.stem}]]")
+                matches.append(
+                    ImpactMatch(
+                        match_level="exact_case",
+                        priority=1,
+                        case_number=case_no,
+                        jid=ref.jid,
+                        jid_stem=ref.stem,
+                        related_jid_count=1,
+                        evidence_text=evidence,
+                    )
+                )
 
         if lines:
             alerts.append(
@@ -273,6 +340,8 @@ def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
                     item_url=getattr(it, "url", "") or "",
                     lines=lines,
                     vault_lines=vault_lines,
+                    item_content_hash=getattr(it, "content_hash", "") or "",
+                    matches=matches,
                 )
             )
     return alerts
@@ -299,3 +368,170 @@ def append_log(log_note: str | Path, alerts: list[ImpactAlert], run_date: str) -
                 f.write(f"  - 원문: {a.item_url}\n")
             for line in a.vault_lines:
                 f.write(f"  - {line}\n")
+
+
+@dataclass(frozen=True)
+class ImpactPersistStats:
+    total: int = 0
+    exact: int = 0
+    broad: int = 0
+
+
+def _candidate_id(alert: ImpactAlert, match: ImpactMatch) -> str:
+    identity = "\0".join(
+        [
+            alert.item_id,
+            alert.item_content_hash,
+            match.match_level,
+            match.law_name or "",
+            match.article or "",
+            match.case_number or "",
+            match.jid or "",
+        ]
+    )
+    return "impact_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+
+
+def persist_impact_candidates(
+    conn: sqlite3.Connection,
+    alerts: list[ImpactAlert],
+    *,
+    timezone: str,
+    source_run_id: str | None = None,
+) -> ImpactPersistStats:
+    """현재 탐지 결과를 멱등 저장한다. 기존 사람 검수 상태는 재탐지해도 보존한다."""
+    detected_at = now_iso(timezone)
+    total = exact = broad = 0
+    with conn:
+        for alert in alerts:
+            for match in alert.matches:
+                candidate_id = _candidate_id(alert, match)
+                conn.execute(
+                    """
+                    INSERT INTO jid_impact_candidates (
+                      candidate_id, item_id, item_content_hash, item_title, item_url,
+                      match_level, priority, law_name, article, case_number,
+                      jid, jid_stem, related_jid_count, evidence_text,
+                      first_detected_at, last_seen_at, source_run_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(candidate_id) DO UPDATE SET
+                      item_title=excluded.item_title,
+                      item_url=excluded.item_url,
+                      related_jid_count=excluded.related_jid_count,
+                      evidence_text=excluded.evidence_text,
+                      last_seen_at=excluded.last_seen_at,
+                      source_run_id=COALESCE(
+                        excluded.source_run_id, jid_impact_candidates.source_run_id
+                      ),
+                      detection_count=jid_impact_candidates.detection_count + 1
+                    """,
+                    (
+                        candidate_id,
+                        alert.item_id,
+                        alert.item_content_hash,
+                        alert.item_title,
+                        alert.item_url,
+                        match.match_level,
+                        match.priority,
+                        match.law_name,
+                        match.article,
+                        match.case_number,
+                        match.jid,
+                        match.jid_stem,
+                        match.related_jid_count,
+                        match.evidence_text,
+                        detected_at,
+                        detected_at,
+                        source_run_id,
+                    ),
+                )
+                total += 1
+                if match.match_level in {"exact_article", "exact_case"}:
+                    exact += 1
+                else:
+                    broad += 1
+    return ImpactPersistStats(total=total, exact=exact, broad=broad)
+
+
+def select_impact_queue(
+    conn: sqlite3.Connection,
+    *,
+    status: str = "unreviewed",
+    exact_only: bool = False,
+    limit: int = 50,
+) -> list[sqlite3.Row]:
+    allowed = {"unreviewed", "no_effect", "affected", "deferred"}
+    if status not in allowed:
+        raise ValueError(f"status는 {sorted(allowed)} 중 하나여야 합니다.")
+    exact_sql = "AND c.match_level IN ('exact_article', 'exact_case')" if exact_only else ""
+    return conn.execute(
+        f"""
+        SELECT c.*, i.source, i.category, i.published_at, i.importance,
+               i.relevance_score
+        FROM jid_impact_candidates c
+        LEFT JOIN items i ON i.id = c.item_id
+        WHERE c.status = ?
+          {exact_sql}
+        ORDER BY c.priority,
+                 COALESCE(i.published_at, c.last_seen_at) DESC,
+                 c.first_detected_at DESC,
+                 c.candidate_id
+        LIMIT ?
+        """,
+        (status, limit),
+    ).fetchall()
+
+
+def prune_legacy_court_candidates(conn: sqlite3.Connection) -> int:
+    """법원도서관 중복 수집분의 미검수 파생 후보만 제거한다.
+
+    사람이 이미 판정한 후보와 검수 이력은 보존한다.
+    """
+    with conn:
+        cur = conn.execute(
+            """
+            DELETE FROM jid_impact_candidates
+            WHERE status = 'unreviewed'
+              AND item_id IN (
+                SELECT id FROM items
+                WHERE source = 'scourt' AND category = 'case_law'
+              )
+            """
+        )
+    return cur.rowcount
+
+
+def review_impact_candidate(
+    conn: sqlite3.Connection,
+    *,
+    candidate_id: str,
+    decision: str,
+    reason: str,
+    reviewer: str,
+    timezone: str,
+) -> None:
+    allowed = {"unreviewed", "no_effect", "affected", "deferred"}
+    if decision not in allowed:
+        raise ValueError(f"decision은 {sorted(allowed)} 중 하나여야 합니다.")
+    if not reason.strip():
+        raise ValueError("검수 사유는 비워둘 수 없습니다.")
+    reviewed_at = now_iso(timezone)
+    with conn:
+        cur = conn.execute(
+            """
+            UPDATE jid_impact_candidates
+            SET status=?, reviewed_at=?, reviewer=?, review_reason=?
+            WHERE candidate_id=?
+            """,
+            (decision, reviewed_at, reviewer, reason.strip(), candidate_id),
+        )
+        if cur.rowcount != 1:
+            raise ValueError(f"영향후보를 찾지 못했습니다: {candidate_id}")
+        conn.execute(
+            """
+            INSERT INTO jid_impact_reviews (
+              candidate_id, decision, reason, reviewer, reviewed_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (candidate_id, decision, reason.strip(), reviewer, reviewed_at),
+        )

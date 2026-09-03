@@ -5,6 +5,7 @@ import json
 import sys
 from email.utils import make_msgid
 from pathlib import Path
+from types import SimpleNamespace
 
 from briefing.config import load_config
 from briefing.db import (
@@ -47,6 +48,10 @@ from briefing.jid_watch import (
     append_log as append_jid_log,
     build_citation_index,
     find_impacts,
+    persist_impact_candidates,
+    prune_legacy_court_candidates,
+    review_impact_candidate,
+    select_impact_queue,
 )
 from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email, render_email_html
@@ -55,6 +60,12 @@ from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
 from briefing.sources.registry import SOURCE_SPECS
 from briefing.summarize import should_call_llm, summarize_with_llm
+from briefing.tagging import (
+    record_tag_review,
+    run_shadow_tagging,
+    search_items_by_tags,
+    select_review_queue,
+)
 from briefing.utils import now_iso
 from briefing.watch import assess_delivery_run
 from briefing.maintenance import rotate_logs, verify_sqlite_backup
@@ -671,6 +682,19 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
     )
     print(f"[timing] enrich {_time.perf_counter() - _t_stage:.1f}s ({len(pending)}건)")
 
+    # 법률 태그는 검색·검수용 shadow 데이터다. 실패해도 메일 판정·발송은 그대로 진행한다.
+    if cfg.tagging.enabled and pending:
+        try:
+            tag_stats = run_shadow_tagging(
+                conn, cfg.tagging, item_ids=[item.id for item in pending]
+            )
+            print(
+                f"[tagging] shadow {tag_stats.processed}/{tag_stats.selected}건, "
+                f"태그 {tag_stats.tags}개, 오류 {tag_stats.errors}건"
+            )
+        except Exception as e:
+            print(f"[tagging] shadow 오류 (발송 영향 없음): {e}", file=sys.stderr)
+
     # 발송 대상 유무와 관계없이 소스 신선도 등 운영 자가진단은 매 실행 수행한다.
     sanity_warnings = run_sanity_checks(conn, pending)
     for w in sanity_warnings:
@@ -707,12 +731,19 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
         )
         return 1 if errors else 0
 
-    # 판단자산(J-ID) 영향 감시 — vault 로그에만 기록, 메일에는 싣지 않음. 실패해도 발송에 영향 없음
+    # 판단자산(J-ID) 영향 감시 — 구조화 검수 큐와 vault 로그에 기록한다.
+    # J-ID 원문은 자동 변경하지 않으며, 실패해도 메일 발송에는 영향이 없다.
     jid_alerts = []
     if cfg.jid_watch.enabled and cfg.jid_watch.judgments_dir:
         try:
             jid_index = build_citation_index(cfg.jid_watch.judgments_dir)
             jid_alerts = find_impacts(jid_index, pending)
+            impact_stats = persist_impact_candidates(
+                conn,
+                jid_alerts,
+                timezone=cfg.timezone,
+                source_run_id=run_id,
+            )
             if jid_alerts and cfg.jid_watch.log_note:
                 append_jid_log(
                     cfg.jid_watch.log_note, jid_alerts,
@@ -720,7 +751,8 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                 )
             print(
                 f"[jid-watch] 판단 {jid_index.n_files}건 인덱싱, "
-                f"영향 항목 {len(jid_alerts)}건"
+                f"영향 항목 {len(jid_alerts)}건 · "
+                f"정확 {impact_stats.exact}건 · 광역 {impact_stats.broad}건"
             )
         except Exception as e:
             print(f"[jid-watch] 오류 (무시): {e}", file=sys.stderr)
@@ -1110,6 +1142,178 @@ def cmd_relevance_backfill(args) -> int:
     return 0
 
 
+def cmd_tag_backfill(args) -> int:
+    """전체 또는 일부 항목에 법률 태그를 shadow 저장한다."""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    stats = run_shadow_tagging(
+        conn,
+        cfg.tagging,
+        force=args.force,
+        limit=max(0, args.limit),
+    )
+    print(
+        f"tag backfill 완료: 선택 {stats.selected}건 · 처리 {stats.processed}건 · "
+        f"태깅 항목 {stats.tagged_items}건 · 태그 {stats.tags}개 · 오류 {stats.errors}건"
+    )
+    return 1 if stats.errors else 0
+
+
+def cmd_tag_review_queue(args) -> int:
+    """다의어·저신뢰 태그와 미태깅 ★ 항목을 검수 순서로 표시한다."""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    rows = select_review_queue(conn, limit=max(1, args.limit))
+    if not rows:
+        print("태그 검수 대기 항목 없음.")
+        return 0
+    print(f"태그 검수 큐: {len(rows)}건\n{'─' * 70}")
+    for row in rows:
+        reason = {
+            1: "미태깅 ★",
+            2: "다의어",
+            3: "저신뢰",
+        }.get(row["priority"], "검토")
+        tag = row["hashtag"] or "(태그 없음)"
+        tag_id = row["tag_id"] or "-"
+        print(f"[{reason}] {row['title']}")
+        print(
+            f"  item={row['item_id']}  tag={tag} ({tag_id})  "
+            f"score={row['score'] if row['score'] is not None else '-'}"
+        )
+        print(f"  {row['url']}\n")
+    return 0
+
+
+def cmd_tag_review(args) -> int:
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    record_tag_review(
+        conn,
+        item_id=args.item_id,
+        tag_id=args.tag_id,
+        decision=args.decision,
+        replacement_tag_id=args.replacement_tag_id,
+        reason_code=args.reason_code,
+        note=args.note,
+        reviewer=args.reviewer,
+        timezone=cfg.timezone,
+    )
+    print(f"태그 검수 기록 완료: {args.item_id} / {args.tag_id or '-'} / {args.decision}")
+    return 0
+
+
+def cmd_tag_search(args) -> int:
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    rows = search_items_by_tags(
+        conn,
+        tags=args.tag,
+        tag_types=args.type,
+        match_all=args.match_all,
+        limit=max(1, args.limit),
+    )
+    if not rows:
+        print("태그 검색 결과 없음.")
+        return 0
+    print(f"태그 검색 결과: {len(rows)}건\n{'─' * 70}")
+    for row in rows:
+        print(f"[{row['source']}] {row['title']}")
+        print(f"  태그: {row['matched_tags']}  날짜: {row['published_at'] or '-'}")
+        print(f"  {row['url']}\n")
+    return 0
+
+
+def cmd_jid_impact_backfill(args) -> int:
+    """기존 뉴스에서 J-ID 영향후보를 다시 찾아 구조화 큐에 적재한다."""
+    cfg = load_config(args.config)
+    if not cfg.jid_watch.judgments_dir:
+        print("jid_watch.judgments_dir가 설정되지 않았습니다.", file=sys.stderr)
+        return 1
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    sql = """
+        SELECT id, title, url, category, raw_text, content_hash
+        FROM items
+        WHERE COALESCE(published_at, substr(last_changed_at, 1, 10))
+              >= date('now', ?)
+          AND NOT (source = 'scourt' AND category = 'case_law')
+        ORDER BY COALESCE(published_at, last_changed_at) DESC, id
+    """
+    params: list[object] = [f"-{max(0, args.days)} days"]
+    if args.limit > 0:
+        sql += " LIMIT ?"
+        params.append(args.limit)
+    rows = conn.execute(sql, params).fetchall()
+    items = [SimpleNamespace(**dict(row)) for row in rows]
+    index = build_citation_index(cfg.jid_watch.judgments_dir)
+    alerts = find_impacts(index, items)
+    stats = persist_impact_candidates(conn, alerts, timezone=cfg.timezone)
+    pruned = prune_legacy_court_candidates(conn)
+    print(
+        f"J-ID 영향후보 백필 완료: 판단 {index.n_files}건 · 뉴스 {len(rows)}건 검사 · "
+        f"영향 뉴스 {len(alerts)}건 · 정확 {stats.exact}건 · 광역 {stats.broad}건 · "
+        f"법원도서관 중복 정리 {pruned}건"
+    )
+    return 0
+
+
+def cmd_jid_impact_queue(args) -> int:
+    """정확 일치를 우선해 J-ID 영향후보 검수 큐를 표시한다."""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    rows = select_impact_queue(
+        conn,
+        status=args.status,
+        exact_only=args.exact_only,
+        limit=max(1, args.limit),
+    )
+    if not rows:
+        print("조건에 맞는 J-ID 영향후보가 없습니다.")
+        return 0
+    labels = {
+        "exact_article": "정확 조문",
+        "exact_case": "정확 판례",
+        "law_only": "법령명 광역",
+    }
+    print(f"J-ID 영향후보 검수 큐: {len(rows)}건 (상태: {args.status})\n{'─' * 70}")
+    for row in rows:
+        print(f"[{labels[row['match_level']]}] {row['item_title']}")
+        print(f"  후보: {row['candidate_id']}")
+        print(f"  근거: {row['evidence_text']}")
+        if row["jid"]:
+            print(f"  판단: {row['jid']} ({row['jid_stem'] or '-'})")
+        else:
+            print(f"  관련 판단 수: {row['related_jid_count']} (개별 영향 미특정)")
+        print(f"  원문: {row['item_url'] or '-'}\n")
+    print("※ affected 판정도 J-ID 파일을 자동 수정하지 않습니다.")
+    return 0
+
+
+def cmd_jid_impact_review(args) -> int:
+    """영향후보에 사람 판정을 기록하고 변경 이력을 남긴다."""
+    cfg = load_config(args.config)
+    conn = connect(cfg.storage.sqlite_path)
+    init_db(conn)
+    review_impact_candidate(
+        conn,
+        candidate_id=args.candidate_id,
+        decision=args.decision,
+        reason=args.reason,
+        reviewer=args.reviewer,
+        timezone=cfg.timezone,
+    )
+    print(f"J-ID 영향후보 검수 완료: {args.candidate_id} / {args.decision}")
+    if args.decision == "affected":
+        print("J-ID 원문은 변경하지 않았습니다. 승인된 후속 검토에서 반영하세요.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="briefing", description="Daily regulatory briefing")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1127,6 +1331,13 @@ def build_parser() -> argparse.ArgumentParser:
         ("harvest", cmd_harvest),
         ("search", cmd_search),
         ("relevance-backfill", cmd_relevance_backfill),
+        ("tag-backfill", cmd_tag_backfill),
+        ("tag-review-queue", cmd_tag_review_queue),
+        ("tag-review", cmd_tag_review),
+        ("tag-search", cmd_tag_search),
+        ("jid-impact-backfill", cmd_jid_impact_backfill),
+        ("jid-impact-queue", cmd_jid_impact_queue),
+        ("jid-impact-review", cmd_jid_impact_review),
     ]:
         sp = sub.add_parser(name)
         sp.add_argument("--config", required=True, help="config.yaml 경로")
@@ -1149,6 +1360,46 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "search":
             sp.add_argument("--query", required=True, help="검색어 (예: '과징금 보험업법')")
             sp.add_argument("--limit", type=int, default=20, help="최대 결과 수 (기본: 20)")
+        if name == "tag-backfill":
+            sp.add_argument("--limit", type=int, default=0, help="처리 상한(0=전체)")
+            sp.add_argument("--force", action="store_true", help="입력 해시가 같아도 다시 태깅")
+        if name == "tag-review-queue":
+            sp.add_argument("--limit", type=int, default=50, help="표시할 검수 후보 수")
+        if name == "tag-review":
+            sp.add_argument("--item-id", required=True)
+            sp.add_argument("--tag-id", help="missed 판정이면 생략 가능")
+            sp.add_argument(
+                "--decision", required=True, choices=("accept", "reject", "edit", "missed")
+            )
+            sp.add_argument("--replacement-tag-id")
+            sp.add_argument("--reason-code")
+            sp.add_argument("--note")
+            sp.add_argument("--reviewer", default="nsss")
+        if name == "tag-search":
+            sp.add_argument("--tag", action="append", required=True, help="태그명 또는 #해시태그")
+            sp.add_argument("--type", action="append", help="law·provision·issue 등 유형")
+            sp.add_argument("--match-all", action="store_true", help="지정 태그를 모두 가진 항목만")
+            sp.add_argument("--limit", type=int, default=20)
+        if name == "jid-impact-backfill":
+            sp.add_argument("--days", type=int, default=60, help="최근 검사 기간(기본: 60일)")
+            sp.add_argument("--limit", type=int, default=0, help="검사 상한(0=전체)")
+        if name == "jid-impact-queue":
+            sp.add_argument(
+                "--status",
+                choices=("unreviewed", "no_effect", "affected", "deferred"),
+                default="unreviewed",
+            )
+            sp.add_argument("--exact-only", action="store_true", help="정확 조문·판례만 표시")
+            sp.add_argument("--limit", type=int, default=50)
+        if name == "jid-impact-review":
+            sp.add_argument("--candidate-id", required=True)
+            sp.add_argument(
+                "--decision",
+                required=True,
+                choices=("unreviewed", "no_effect", "affected", "deferred"),
+            )
+            sp.add_argument("--reason", required=True, help="판정 근거 또는 보류 사유")
+            sp.add_argument("--reviewer", default="nsss")
         if name == "delivery-status":
             sp.add_argument("--limit", type=int, default=10, help="표시할 최근 실행 수")
         if name == "delivery-watch":
