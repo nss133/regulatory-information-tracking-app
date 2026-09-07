@@ -147,6 +147,30 @@ class TestJidWatch(unittest.TestCase):
                      raw_text="개인정보 보호법 안내 행사")
         self.assertEqual(find_impacts(self.idx, [item]), [])
 
+    def test_previous_next_navigation_does_not_create_law_match(self):
+        d = Path(self.tmp.name)
+        (d / "J-2026-0006_단기매매차익.md").write_text(
+            """---
+id: J-2026-0006
+쟁점: 단기매매차익
+근거:
+  - 단기매매차익 반환 및 불공정거래 조사·신고 등에 관한 규정 §8
+---
+"""
+        )
+        idx = build_citation_index(d)
+        item = _item(
+            "자본시장조사 업무규정 일부개정고시안 행정예고",
+            category="admin_notice",
+            raw_text=(
+                "현재 공고는 조사기관 협의회 운영근거를 정비한다. "
+                "첨부파일 개정안.pdf 목록으로 이전글 "
+                "단기매매차익 반환 및 불공정거래 조사·신고 등에 관한 규정 "
+                "일부개정고시안 다음글 데이터가 없습니다."
+            ),
+        )
+        self.assertEqual(find_impacts(idx, [item]), [])
+
     def test_legacy_court_library_case_is_excluded(self):
         item = _item(
             "대법원 주요판결",

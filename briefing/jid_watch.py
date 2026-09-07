@@ -208,6 +208,21 @@ class ImpactAlert:
 # 창을 좁게 잡아 놓친 조문은 법령 단위 요약으로 폴백되므로 과소매칭 쪽이 안전함.
 _ARTICLE_WINDOW = 100
 
+# 기관 상세페이지의 하단 이전글·다음글 제목은 현재 항목의 규범 근거가 아니다.
+# 그대로 매칭하면 인접 공고의 법령명이 현재 항목의 영향후보로 잘못 저장된다.
+_NAVIGATION_BOUNDARIES = (
+    "목록으로 이전글",
+    "목록 이전글",
+    "이전글 ",
+    "다음글 ",
+)
+
+
+def _strip_trailing_navigation(text: str) -> str:
+    positions = [text.find(marker) for marker in _NAVIGATION_BOUNDARIES]
+    positions = [pos for pos in positions if pos >= 0]
+    return text[: min(positions)] if positions else text
+
 
 def _articles_near(norm_text: str, variant: str) -> set[str]:
     out: set[str] = set()
@@ -234,7 +249,7 @@ def find_impacts(idx: CitationIndex, pending) -> list[ImpactAlert]:
         ):
             continue
 
-        text = f"{title}\n{it.raw_text or ''}"
+        text = f"{title}\n{_strip_trailing_navigation(it.raw_text or '')}"
         norm_text = _norm(text)
 
         lines: list[str] = []

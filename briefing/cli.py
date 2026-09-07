@@ -23,6 +23,7 @@ from briefing.db import (
     record_source_fetches,
     reset_sent_after,
     search_content,
+    select_primary_attachment_text,
     select_recent_delivery_runs,
     select_items_missing_body,
     select_last_sent_batch,
@@ -441,12 +442,13 @@ def _enrich(conn, cfg, items) -> None:
     # 스냅샷 부재·비활성 시 None이 되어 파이프라인은 그대로 진행.
     scorer = build_scorer(cfg)
 
-    def _save_relevance(item, summary_text) -> None:
+    def _save_relevance(item, summary_text, supplemental_text=None) -> None:
         if scorer is None:
             return
         try:
             body = build_score_text(
-                source=item.source, raw_text=item.raw_text, summary=summary_text
+                source=item.source, raw_text=item.raw_text, summary=summary_text,
+                supplemental_text=supplemental_text,
             )
             res = scorer.score(title=item.title, body=body, category=item.category)
             update_item_relevance(
@@ -457,7 +459,17 @@ def _enrich(conn, cfg, items) -> None:
             print(f"[relevance] 채점 실패 {item.id}: {e}")
 
     for it in items:
-        rank = rank_item(title=it.title, raw_text=None, cfg=cfg.ranking)
+        attachment_text = select_primary_attachment_text(conn, item_id=it.id)
+        # 일반 기관 HTML raw_text에는 메뉴·푸터가 섞일 수 있다. 중요도는 제목에
+        # 더해 검증된 첨부본문을 사용하고, 구조화 원문인 대법원·국회만 raw_text를
+        # 함께 사용한다. 이로써 제목이 행사성인 감독자료의 실질 쟁점을 놓치지 않는다.
+        ranking_parts = [attachment_text]
+        if it.source in ("scourt", "na") and it.raw_text:
+            ranking_parts.append(it.raw_text)
+        ranking_text = "\n".join(part for part in ranking_parts if part)
+        rank = rank_item(
+            title=it.title, raw_text=ranking_text or None, cfg=cfg.ranking
+        )
         importance = rank.importance
         reason = rank.reason
         summary = None
@@ -472,7 +484,10 @@ def _enrich(conn, cfg, items) -> None:
         deadline_json = deadlines_to_json(
             extract_deadlines(deadline_text, allowed_labels=deadline_labels)
         )
-        body = it.raw_text or ""
+        # 첨부본문을 앞에 두어 LLM의 본문 길이 제한 안에 핵심 내용이 들어가게 한다.
+        body = "\n".join(
+            part for part in (attachment_text, it.raw_text or "") if part
+        )
         attachment_links = []
 
         # 입법·행정예고는 중요도와 무관하게 상세 원문에서 명시적 기한을 확인한다.
@@ -553,7 +568,7 @@ def _enrich(conn, cfg, items) -> None:
                 summary=final_summary,
                 deadlines_json=deadline_json,
             )
-            _save_relevance(it, final_summary)
+            _save_relevance(it, final_summary, attachment_text)
             continue
 
         if should_call_llm(llm=cfg.llm, current_importance=importance) and not it.summary:
@@ -573,7 +588,7 @@ def _enrich(conn, cfg, items) -> None:
                     summary=summary,
                     deadlines_json=deadline_json,
                 )
-                _save_relevance(it, summary)
+                _save_relevance(it, summary, attachment_text)
                 continue
             else:
                 if not body:
@@ -607,7 +622,8 @@ def _enrich(conn, cfg, items) -> None:
                 pre = scorer.score(
                     title=it.title,
                     body=build_score_text(
-                        source=it.source, raw_text=it.raw_text, summary=it.summary
+                        source=it.source, raw_text=it.raw_text, summary=it.summary,
+                        supplemental_text=attachment_text,
                     ),
                     category=it.category,
                 )
@@ -639,7 +655,7 @@ def _enrich(conn, cfg, items) -> None:
             summary=final_summary,
             deadlines_json=deadline_json,
         )
-        _save_relevance(it, final_summary)
+        _save_relevance(it, final_summary, attachment_text)
 
     if _llm_call_count:
         print(f"[timing] enrich 중 LLM 호출 {_llm_call_count}회 "
@@ -675,6 +691,18 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
     pending = select_pending_for_email(
         conn, max_days_since_published=cfg.filter_config.max_days_since_published
     )
+    # 중요도·요약 전에 공식 본문과 첨부를 확보한다. 종전에는 발송 후 harvest하여
+    # 제목이 평범한 금감원 자료의 핵심 쟁점이 LOW로 고정되는 구조였다.
+    if cfg.archive.enabled:
+        _t_stage = _time.perf_counter()
+        try:
+            harvest_content(conn, cfg)
+        except Exception as e:
+            print(f"[pre-enrich harvest] 오류 (무시): {e}")
+        print(f"[timing] pre-enrich harvest {_time.perf_counter() - _t_stage:.1f}s")
+        pending = select_pending_for_email(
+            conn, max_days_since_published=cfg.filter_config.max_days_since_published
+        )
     update_delivery_run(conn, run_id, stage="enriched", candidate_count=len(pending))
     _enrich(conn, cfg, pending)
     pending = select_pending_for_email(
@@ -716,12 +744,6 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
             send_error_alert(
                 cfg=cfg.email, errors=errors, run_date=now_iso(cfg.timezone)[:10]
             )
-        # 발송 대상이 없어도 harvest는 실행 (body/첨부 수집 + FTS 갱신)
-        if cfg.archive.enabled:
-            try:
-                harvest_content(conn, cfg)
-            except Exception as e:
-                print(f"[harvest] 오류 (무시): {e}")
         update_delivery_run(
             conn, run_id, status="failed" if errors else "completed",
             stage="fetch_error" if errors else "no_candidates",
@@ -945,7 +967,7 @@ def cmd_run(args) -> int:
 
 def harvest_content(conn, cfg) -> None:
     """
-    이메일 발송 후 실행: body text 수집 + 첨부파일 kordoc 추출 + FTS 재구축.
+    body text 수집 + 첨부파일 kordoc 추출 + FTS 재구축.
     파이프라인 실패를 막지 않도록 모든 예외를 내부에서 처리합니다.
     """
     import time as _time

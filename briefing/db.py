@@ -1039,6 +1039,33 @@ def update_attachment_result(
     conn.commit()
 
 
+def select_primary_attachment_text(
+    conn: sqlite3.Connection, *, item_id: str, max_chars: int = 12000
+) -> str:
+    """Return the most substantial successfully extracted attachment text.
+
+    Public agencies commonly publish the same release as HWP/HWPX and PDF.  Using
+    every extraction would duplicate the prompt and can bury the useful opening
+    section, so ranking and summarization use the longest successful extraction.
+    """
+    row = conn.execute(
+        """
+        SELECT extracted_text
+        FROM item_content
+        WHERE item_id = :item_id
+          AND extraction_status = 'success'
+          AND extracted_text IS NOT NULL
+          AND length(trim(extracted_text)) > 0
+        ORDER BY length(extracted_text) DESC, source_url
+        LIMIT 1
+        """,
+        {"item_id": item_id},
+    ).fetchone()
+    if row is None:
+        return ""
+    return str(row["extracted_text"] or "")[:max_chars]
+
+
 def select_items_missing_body(
     conn: sqlite3.Connection, *, days: int = 30, limit: int = 100
 ) -> list[sqlite3.Row]:

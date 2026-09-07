@@ -238,11 +238,16 @@ BODY_OK_SOURCES = {"scourt", "na"}
 
 
 def build_score_text(*, source: str, raw_text: Optional[str],
-                     summary: Optional[str]) -> Optional[str]:
-    """채점용 body 텍스트 조립 (요약 + 허용 소스의 원문)."""
+                     summary: Optional[str],
+                     supplemental_text: Optional[str] = None) -> Optional[str]:
+    """채점용 body 텍스트 조립 (요약 + 신뢰 원문 + 추출 첨부본문)."""
     parts = []
     if summary:
         parts.append(summary)
+    # item_content의 success 텍스트는 문서 변환이 끝난 공식 첨부본문이다.
+    # HTML 메뉴·푸터가 섞인 raw_text와 달리 소스와 무관하게 채점에 사용한다.
+    if supplemental_text:
+        parts.append(supplemental_text)
     if raw_text and source in BODY_OK_SOURCES:
         parts.append(raw_text)
     return "\n".join(parts) if parts else None
