@@ -24,7 +24,9 @@ def _text_from_soup(soup: "BeautifulSoup") -> str:
 # 껍데기가 남는다(2026-07 금감원 보도자료 오염 사례). 매칭되고 텍스트가 충분하면
 # 그 컨테이너 안만 본문으로 쓰고, 없으면 기존 전체 페이지 추출로 폴백.
 _BODY_SELECTORS = (
+    ".n-dbdata",  # 금감원 2026-09 KRDS 개편 이후 게시글 본문
     ".dbdata",    # 금감원(fss.or.kr) 게시글 본문
+    ".krds-bd-view",  # 금감원 신형 게시글 전체(짧은 본문의 안전한 폴백)
     ".bd-view",   # 금감원 게시글 본문+메타(제목·등록일·첨부)
 )
 _BODY_MIN_CHARS = 80
@@ -66,4 +68,3 @@ def extract_page_content(
     attachment_links = find_attachment_links(soup, base_url=url)
     body_text = _text_from_soup(_select_body_root(soup))
     return body_text, attachment_links
-

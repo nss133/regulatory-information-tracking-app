@@ -978,10 +978,23 @@ def mark_old_scourt_as_sent(conn: sqlite3.Connection, *, tz_name: str) -> int:
 # ── 아카이브 함수 ──────────────────────────────────────────────────────────────
 
 
+_REFRESHABLE_BODY_SQL = """
+    raw_text IS NULL
+    OR raw_text LIKE '주메뉴 바로가기%'
+    OR instr(raw_text, '이메일무단수집거부') > 0
+    OR instr(raw_text, '영상정보처리기기 운영방침') > 0
+"""
+
+
 def update_body_text(conn: sqlite3.Connection, *, item_id: str, body_text: str) -> None:
-    """items.raw_text 컬럼에 본문 텍스트를 저장합니다."""
+    """비어 있거나 사이트 상용구로 오염된 items.raw_text를 저장·교체합니다."""
     conn.execute(
-        "UPDATE items SET raw_text = :body WHERE id = :id AND raw_text IS NULL",
+        f"""
+        UPDATE items
+        SET raw_text = :body
+        WHERE id = :id
+          AND ({_REFRESHABLE_BODY_SQL})
+        """,
         {"id": item_id, "body": body_text},
     )
     conn.commit()
@@ -1069,12 +1082,12 @@ def select_primary_attachment_text(
 def select_items_missing_body(
     conn: sqlite3.Connection, *, days: int = 30, limit: int = 100
 ) -> list[sqlite3.Row]:
-    """body text(raw_text)가 없는 항목 중 최근 N일 이내 것을 반환합니다."""
+    """본문이 없거나 상용구로 오염된 최근 항목을 재수집 대상으로 반환합니다."""
     return conn.execute(
-        """
+        f"""
         SELECT id, source, url
         FROM items
-        WHERE raw_text IS NULL
+        WHERE ({_REFRESHABLE_BODY_SQL})
           AND source != 'scourt'
           AND (published_at IS NULL OR published_at >= date('now', :modifier))
         ORDER BY published_at DESC

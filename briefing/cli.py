@@ -597,7 +597,7 @@ def _enrich(conn, cfg, items) -> None:
                     except Exception:
                         body = ""
                         attachment_links = []
-            # body text 저장 (update_body_text 내부 WHERE raw_text IS NULL로 idempotent)
+            # body text 저장(비어 있거나 상용구로 오염된 경우에만 교체하여 idempotent)
             if body:
                 update_body_text(conn, item_id=it.id, body_text=body)
                 deadline_json = deadlines_to_json(
