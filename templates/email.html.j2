@@ -127,44 +127,17 @@
       /* ── 오류 ── */
       /* ── 푸터 ── */
       .footer { font-size: 12px; color: #bbb; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px; }
-    /* Approved email refinement — 2026-11-09 */
 
-body { width:100%; max-width:none; margin:0; padding:0; font-size:16px; line-height:1.75; }
-.email-container { width:100%; max-width:2480px; margin:0 auto; table-layout:fixed; }
-.email-content { padding:24px 28px 32px; overflow-wrap:anywhere; }
-.top-meta { color:#59616b; font-size:12px; padding-bottom:10px; margin-bottom:24px; border-bottom:2px solid #20252b; }
-.section { margin-bottom:28px; }
-.sec-header { font-size:14px; letter-spacing:.02em; padding-bottom:7px; margin-bottom:4px; }
-.sec-header-low { color:#59616b; }
-.item { padding:15px 0 17px; border-bottom:1px solid #e7e9ed; }
-.item-meta { margin-bottom:5px; line-height:1.8; }
-.tag { font-size:11px; padding:1px 6px; font-weight:500; margin-right:3px; border-radius:3px; }
-.tag-source { background:#edf3fc; color:#24508f; }
-.tag-kind { background:#f3effa; color:#665083; }
-.tag-new { background:#edf5ef; color:#356849; }
-.item-date { font-size:12px; color:#68717e; }
-.item-title { font-size:18px; font-weight:600; line-height:1.55; margin:3px 0 8px; overflow-wrap:anywhere; }
-.item-summary { font-size:16px; color:#424a55; line-height:1.8; border-left:2px solid #d9dee5; padding-left:11px; margin:7px 0 9px; }
-.item-relevance { font-size:12px; line-height:1.7; margin:4px 0 7px; }
-.item-attach { font-size:12px; color:#697380; line-height:1.8; margin-top:7px; overflow-wrap:anywhere; }
-.item-attach a { color:#345c91; text-decoration:underline; text-underline-offset:2px; }
-.item-attach a+a { margin-left:8px; }
-.item-deadlines { margin:6px 0; line-height:1.8; }
-.child-list { padding-left:14px; margin:12px 0 2px; border-left:2px solid #e3e6eb; }
-.child-item { padding:10px 0; }
-.section-low .item { padding:10px 0; }
-.section-low .item-title { font-size:16px; margin-bottom:3px; }
-.footer { color:#68717e; padding-top:12px; margin-top:30px; }
-a:focus-visible { outline:2px solid #24508f; outline-offset:3px; }
-@media(max-width:520px) { .email-content { padding:16px 12px 24px !important; } .item-title { font-size:16px; } .tag { padding:1px 5px; } }
-
-      .item-report { margin:14px 0; padding:16px 18px; background:#edf5fd; border:1px solid #bfd4e9; border-left:4px solid #245f8c; color:#183957; font-size:15px; line-height:1.8; overflow-wrap:anywhere; }
-      .report-preview { display:block; width:100%; max-width:740px; height:auto; margin:12px 0 4px; border:1px solid #c8d7e7; }
-    </style>
+/* PDF 첨부 안내 외의 글꼴·간격·본문 폭은 11/9 최초 발송 서식을 사용한다. */
+.email-container { width:100%; margin:0; table-layout:fixed; }
+.email-content { padding:0; overflow-wrap:anywhere; }
+.item-report { margin:10px 0; padding:12px 14px; background:#edf5fd; border:1px solid #bfd4e9; border-left:4px solid #245f8c; color:#183957; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.report-preview { display:block; width:100%; max-width:740px; height:auto; margin:10px 0 4px; border:1px solid #c8d7e7; }
+</style>
   </head>
   <body>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;"><tr><td align="center">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-container" style="width:100%;max-width:2480px;margin:0 auto;table-layout:fixed;"><tr><td class="email-content" style="padding:24px 28px 32px;font-family:Arial,Malgun Gothic,sans-serif;font-size:16px;line-height:1.75;color:#111;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-container" style="width:100%;margin:0;table-layout:fixed;"><tr><td class="email-content" style="padding:0;font-family:-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Malgun Gothic,sans-serif;font-size:14px;line-height:1.5;color:#111;">
 
     <div class="top-meta">
       {{ run_date[:10] }} &nbsp;·&nbsp; Legal &amp; Compliance Signal &nbsp;·&nbsp; 이번 회차 선별 항목
@@ -217,8 +190,8 @@ a:focus-visible { outline:2px solid #24508f; outline-offset:3px; }
                 <div class="item-reason">{{ it.reason }}</div>
               {% endif %}
 
-              {% if it.report_files %}<div class="item-report" style="margin:14px 0;padding:16px 18px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:15px;line-height:1.8;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in it.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
-                {% for preview in it.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:15px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
+              {% if it.report_files %}<div class="item-report" style="margin:10px 0;padding:12px 14px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:13px;line-height:1.6;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in it.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
+                {% for preview in it.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:13px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
               </div>{% endif %}
               {% if it.attachments|length > 0 %}
                 <div class="item-attach">
@@ -250,8 +223,8 @@ a:focus-visible { outline:2px solid #24508f; outline-offset:3px; }
                       {% elif child.reason %}
                         <div class="item-reason">{{ child.reason }}</div>
                       {% endif %}
-                      {% if child.report_files %}<div class="item-report" style="margin:14px 0;padding:16px 18px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:15px;line-height:1.8;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in child.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
-                {% for preview in child.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:15px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
+                      {% if child.report_files %}<div class="item-report" style="margin:10px 0;padding:12px 14px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:13px;line-height:1.6;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in child.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
+                {% for preview in child.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:13px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
               </div>{% endif %}
                       {% if child.attachments|length > 0 %}
                         <div class="item-attach">

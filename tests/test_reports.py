@@ -63,7 +63,8 @@ class ReportsTests(unittest.TestCase):
         self.assertIn('cid:'+atts[0].preview_cid,msg.get_body(preferencelist=('html',)).get_content())
         self.assertNotIn('상세 리포트 PDF 1건 첨부',rendered.html)
         self.assertIn('PDF 미리보기 펼치기 / 접기',rendered.html)
-        self.assertIn('max-width:2480px',rendered.html)
+        self.assertNotIn('max-width:2480px',rendered.html)
+        self.assertIn('font-size:14px;line-height:1.5',rendered.html)
 
         manifest=archive_delivery(archive_root=self.root/'archive',run_date='2026-11-09T12:00:00+09:00',
             run_id='test123456',subject='검증',message_id='<test>',recipients=['test@example.com'],html=rendered.html,items=[it],attachments=atts)
