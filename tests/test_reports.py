@@ -45,7 +45,7 @@ class ReportsTests(unittest.TestCase):
         atts=tuple(prepare_reports([it],report_dir=self.d,output_dir=self.root/'pdf'))
         self.assertEqual(len(atts),1)
         rendered=render_email(items=[it],template_dir=ROOT/'templates',subject='검증',run_date='2026-11-09',report_attachments=atts)
-        self.assertIn('메일에 첨부된 PDF',rendered.html)
+        self.assertIn('상세 리포트 PDF가 첨부되어 있습니다',rendered.html)
         self.assertIn(atts[0].filename,rendered.html)
         cfg=load_config(ROOT/'config.yaml').email
         with patch('briefing.emailer.smtplib.SMTP') as smtp, patch.object(type(cfg.smtp),'password',return_value='test'):
@@ -61,8 +61,9 @@ class ReportsTests(unittest.TestCase):
         self.assertEqual(str(images[0]['Content-ID']),'<'+atts[0].preview_cid+'>')
         self.assertEqual(images[0].get_payload(decode=True),atts[0].preview_png)
         self.assertIn('cid:'+atts[0].preview_cid,msg.get_body(preferencelist=('html',)).get_content())
-        self.assertIn('상세 리포트 PDF 1건 첨부',rendered.html)
-        self.assertIn('max-width:1240px',rendered.html)
+        self.assertNotIn('상세 리포트 PDF 1건 첨부',rendered.html)
+        self.assertIn('PDF 미리보기 펼치기 / 접기',rendered.html)
+        self.assertIn('max-width:2480px',rendered.html)
 
         manifest=archive_delivery(archive_root=self.root/'archive',run_date='2026-11-09T12:00:00+09:00',
             run_id='test123456',subject='검증',message_id='<test>',recipients=['test@example.com'],html=rendered.html,items=[it],attachments=atts)

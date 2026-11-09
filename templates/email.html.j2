@@ -130,7 +130,7 @@
     /* Approved email refinement — 2026-11-09 */
 
 body { width:100%; max-width:none; margin:0; padding:0; font-size:16px; line-height:1.75; }
-.email-container { width:100%; max-width:1240px; margin:0 auto; table-layout:fixed; }
+.email-container { width:100%; max-width:2480px; margin:0 auto; table-layout:fixed; }
 .email-content { padding:24px 28px 32px; overflow-wrap:anywhere; }
 .top-meta { color:#59616b; font-size:12px; padding-bottom:10px; margin-bottom:24px; border-bottom:2px solid #20252b; }
 .section { margin-bottom:28px; }
@@ -158,31 +158,17 @@ body { width:100%; max-width:none; margin:0; padding:0; font-size:16px; line-hei
 a:focus-visible { outline:2px solid #24508f; outline-offset:3px; }
 @media(max-width:520px) { .email-content { padding:16px 12px 24px !important; } .item-title { font-size:16px; } .tag { padding:1px 5px; } }
 
-      .report-banner { margin:0 0 24px; padding:18px 20px; background:#eaf3fc; border:1px solid #bfd4e9; border-left:5px solid #245f8c; color:#183957; font-size:16px; line-height:1.8; }
-      .report-banner-title { font-size:20px; font-weight:700; margin:0 0 6px; }
       .item-report { margin:14px 0; padding:16px 18px; background:#edf5fd; border:1px solid #bfd4e9; border-left:4px solid #245f8c; color:#183957; font-size:15px; line-height:1.8; overflow-wrap:anywhere; }
       .report-preview { display:block; width:100%; max-width:740px; height:auto; margin:12px 0 4px; border:1px solid #c8d7e7; }
-      .report-fallback { font-size:14px; font-weight:600; color:#245f8c; }
     </style>
   </head>
   <body>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;"><tr><td align="center">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-container" style="width:100%;max-width:1240px;margin:0 auto;table-layout:fixed;"><tr><td class="email-content" style="padding:24px 28px 32px;font-family:Arial,Malgun Gothic,sans-serif;font-size:16px;line-height:1.75;color:#111;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-container" style="width:100%;max-width:2480px;margin:0 auto;table-layout:fixed;"><tr><td class="email-content" style="padding:24px 28px 32px;font-family:Arial,Malgun Gothic,sans-serif;font-size:16px;line-height:1.75;color:#111;">
 
     <div class="top-meta">
       {{ run_date[:10] }} &nbsp;·&nbsp; Legal &amp; Compliance Signal &nbsp;·&nbsp; 이번 회차 선별 항목
     </div>
-
-    {% if report_attachments %}
-      <div class="report-banner" style="margin:0 0 24px;padding:18px 20px;background:#eaf3fc;border:1px solid #bfd4e9;border-left:5px solid #245f8c;color:#183957;line-height:1.8;">
-        <div class="report-banner-title" style="font-size:20px;font-weight:700;margin-bottom:6px;">상세 리포트 PDF {{ report_attachments|length }}건 첨부</div>
-        {% for report in report_attachments %}
-          <div><strong>{{ report.title or report.filename }}</strong></div>
-          <div>첨부파일: {{ report.filename }}</div>
-        {% endfor %}
-        <div class="report-fallback">아래 이미지로 내용을 미리 보고, 전체 내용은 메일에 첨부된 PDF에서 확인해 주세요.</div>
-      </div>
-    {% endif %}
 
     {% for sec in sections %}
       {% if sec.items|length > 0 %}
@@ -231,8 +217,8 @@ a:focus-visible { outline:2px solid #24508f; outline-offset:3px; }
                 <div class="item-reason">{{ it.reason }}</div>
               {% endif %}
 
-              {% if it.report_files %}<div class="item-report" style="margin:14px 0;padding:16px 18px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:15px;line-height:1.8;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in it.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}<br />메일에 첨부된 PDF를 확인해 주세요.
-                {% for preview in it.report_previews %}<img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 이미지가 보이지 않으면 첨부 PDF를 확인해 주세요." width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span>{% endfor %}
+              {% if it.report_files %}<div class="item-report" style="margin:14px 0;padding:16px 18px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:15px;line-height:1.8;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in it.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
+                {% for preview in it.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:15px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
               </div>{% endif %}
               {% if it.attachments|length > 0 %}
                 <div class="item-attach">
@@ -264,9 +250,9 @@ a:focus-visible { outline:2px solid #24508f; outline-offset:3px; }
                       {% elif child.reason %}
                         <div class="item-reason">{{ child.reason }}</div>
                       {% endif %}
-                      {% if child.report_files %}<div class="item-report" style="margin:14px 0;padding:16px 18px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:15px;line-height:1.8;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in child.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}<br />메일에 첨부된 PDF를 확인해 주세요.
-                        {% for preview in child.report_previews %}<img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" />{% endfor %}
-                      </div>{% endif %}
+                      {% if child.report_files %}<div class="item-report" style="margin:14px 0;padding:16px 18px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:15px;line-height:1.8;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in child.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
+                {% for preview in child.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:15px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
+              </div>{% endif %}
                       {% if child.attachments|length > 0 %}
                         <div class="item-attach">
                           첨부:
