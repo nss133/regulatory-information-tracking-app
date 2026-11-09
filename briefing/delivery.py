@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from briefing.db import StoredItem
+from briefing.reports import PdfAttachment
 
 
 def delivery_fingerprint(items: list[StoredItem], recipients: list[str]) -> str:
@@ -27,6 +28,7 @@ def archive_delivery(
     recipients: list[str],
     html: str,
     items: list[StoredItem],
+    attachments: tuple[PdfAttachment, ...] = (),
 ) -> Path:
     """실제 SMTP에 넘길 HTML과 항목 원장을 같은 이름으로 보관한다."""
     day_dir = Path(archive_root) / run_date[:10]
@@ -35,6 +37,15 @@ def archive_delivery(
     html_path = day_dir / f"{stem}.html"
     json_path = day_dir / f"{stem}.json"
     html_path.write_text(html, encoding="utf-8")
+    attachment_manifest = []
+    for attachment in attachments:
+        if Path(attachment.filename).name != attachment.filename:
+            raise ValueError("잘못된 첨부파일명")
+        target = day_dir / f"{stem}-{attachment.filename}"
+        target.write_bytes(attachment.content)
+        attachment_manifest.append({"filename": attachment.filename, "archive_file": target.name,
+            "sha256": attachment.sha256, "size": len(attachment.content),
+            "report_id": attachment.report_id, "item_ids": list(attachment.item_ids)})
     manifest = {
         "run_id": run_id,
         "run_date": run_date,
@@ -42,6 +53,7 @@ def archive_delivery(
         "message_id": message_id,
         "recipients": recipients,
         "html_file": html_path.name,
+        "attachments": attachment_manifest,
         "items": [
             {
                 "id": item.id,

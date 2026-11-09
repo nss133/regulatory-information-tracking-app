@@ -1,0 +1,62 @@
+{
+  "report_id": "insurance-sales-company-bill-2221395",
+  "revision": 1,
+  "status": "draft",
+  "kind": "legislation",
+  "title": "보험판매전문회사 도입 입법동향",
+  "display_title": "보험판매전문회사 도입\n보험업법 개정안 주요 내용",
+  "as_of": "2026-11-09",
+  "stage": "심사",
+  "stage_note": "정무위원회 회부 상태이며, 의무·시행일은 확정되지 않음.",
+  "selection": {
+    "relevance": "GA의 법적 지위·소비자보호·준법감시 체계 및 보험회사와의 업무 연계에 관한 안임.",
+    "explanation_value": "별도 판매전문회사 제도와 보험금 업무 범위, 하위규정 위임 및 연계 법안의 관계를 설명할 필요가 있음.",
+    "evidence": "국회 의안 제2221395호 원문 PDF 33쪽, 제안이유 및 심사정보 확인."
+  },
+  "overview": [
+    "보험판매전문회사 제도를 신설하여 GA의 업무 범위와 소비자보호 책임을 명확히 하려는 안임.",
+    "2026.9.16. 발의되어 9.17. 정무위원회에 회부됨. 금융소비자보호법 개정안(제2221396호) 의결을 전제로 함."
+  ],
+  "key_points": [
+    {
+      "topic": "등록체계",
+      "current": "별도 제도 없음",
+      "proposed": "보험판매전문회사 신설·금융위 등록 및 보험대리점과의 변경등록 허용(안 제88조의2)",
+      "impact": "위탁 상대방의 지위·등록요건 확인"
+    },
+    {
+      "topic": "업무범위",
+      "current": "해당 신설조문 없음",
+      "proposed": "사고접수·청구 지원·대행 및 대통령령으로 정하는 소액보험금 지급대행 허용(안 제88조의5)",
+      "impact": "보험금 업무·정보제공 연계 검토"
+    },
+    {
+      "topic": "통제체계",
+      "current": "해당 신설조문 없음",
+      "proposed": "판매교육·소비자보호·준법감시책임자 배치 의무 신설(안 제88조의3)",
+      "impact": "판매위탁 관리 시 확인할 요건"
+    }
+  ],
+  "comparison_basis": "발의안 신·구조문대비표의 신설조문 기준임.",
+  "industry_impact": "판매위탁 상대방과 계약 유지·보험금 업무의 연계가 확대될 수 있음. 개정안 확정 시의 참고 관점임.",
+  "business_reference": [
+    "준법감시본부의 모집위탁·소비자보호 관련 규제 점검 시 업무범위와 책임 배분의 변경 가능성을 참고할 수 있음.",
+    "연계 법안·하위규정도 함께 확인할 사항임. 부칙안은 공포 후 6개월 시행이며 시행일은 미정임."
+  ],
+  "verification_scope": "국회 원문·심사정보 기준. 당사 적용 검토 및 연계 법안 본문 대조는 포함하지 않음.",
+  "sources": [
+    {
+      "item_id": "na:bill-info:PRC_Y2W6X0V9W1D1C1D2B5B5A3B8W1X4V0",
+      "content_hash": "de7721b2b35e342248eadcc61e5a422eed52ac4a244bf58e2ac8ce3459891940",
+      "label": "국회 의안정보, 제2221395호 제안·심사정보(2026.11.9. 확인).",
+      "url": "https://likms.assembly.go.kr/bill/bi/billDetailPage.do?billId=PRC_Y2W6X0V9W1D1C1D2B5B5A3B8W1X4V0"
+    },
+    {
+      "item_id": "na:original:PRC_Y2W6X0V9W1D1C1D2B5B5A3B8W1X4V0",
+      "content_hash": "8d1540a8fb68d8df2cd67218e6f1d627fe934f5f90d5b1320fa8a453c0707dec",
+      "label": "동 법안 원문 3, 5~8, 13, 15~21쪽: 연계 법안·신설조문·부칙·신구대비표.",
+      "url": "https://likms.assembly.go.kr/filegate/servlet/FileGate?bookId=56DA8611-6BF3-3E84-9AE2-40D9F89BFB32&type=1"
+    }
+  ],
+  "reference_label": "의안 제2221395호 · 민병덕 의원 등 14인"
+}

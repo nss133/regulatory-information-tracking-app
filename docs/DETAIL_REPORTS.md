@@ -1,0 +1,58 @@
+# 본부 공용 PDF 상세 리포트
+
+기존 브리핑 형식을 유지하며 필요한 사안만 A4 1페이지 PDF로 첨부한다. 폐쇄망에서 리포트 내용을 읽을 수 있도록 링크 서비스나 신규 API를 사용하지 않는다. 선정 기준은 `docs/reviews/2026-11-09-detail-report-criteria.md`에 있다.
+
+## 수동 발송 요청 처리
+
+1. 원문 수집 후 `report-candidates`로 최근 변경 자료의 검토 후보를 확인한다. 후보는 자동 선정 결과가 아니다. HIGH 등급만으로 리포트를 만들지 않는다.
+2. `report-init`으로 원문 버전이 연결된 작성 JSON을 만든다. 유형과 단계의 초기값도 원문과 대조해 수정한다.
+3. 작업자가 공식 자료를 읽고 선정 사유 세 가지, 진행경과, 핵심 내용, 업무 참고사항 및 확인 범위를 작성한다. 입법은 현행 대비 변경과 보험업 영향을 구분하고 미확정 단계임을 표시한다.
+4. `report-build`로 PDF를 만들고 한글·표·페이지를 검수한 뒤 JSON 상태를 `ready`로 설정한다. 초안 `draft`는 발송에 포함되지 않는다. 별도 API나 상시 사용자 승인 화면은 필요 없다.
+5. 이후 `run`에서 실제 메일 노출 대상과 원문 버전이 맞는 ready 리포트를 생성·첨부한다. 파일명은 메일 본문에 표시하고 첨부 바이트와 해시를 발송 보관 이력에 기록한다. 원문 변경 시에는 리포트를 갱신해야 한다.
+
+```sh
+.venv/bin/python -m briefing report-candidates --config config.yaml --days 7 --out logs/report-candidates/manual.json
+.venv/bin/python -m briefing report-init --config config.yaml --item-id 'fsc:88081' --report-id insurance-supervision-20261104 --out reports/insurance-supervision-20261104.json
+.venv/bin/python -m briefing report-build --input reports/insurance-supervision-20261104.json --out output/pdf/insurance-supervision-20261104-v1.pdf
+```
+
+`report-candidates`와 `report-init`은 SQLite를 읽기 전용으로 열고 발송·원문·개인 vault를 변경하지 않는다. `run`은 기존과 같이 메일을 보낸다. 리포트를 준비하는 동안 발송하지 않으려면 후보 명령과 PDF 생성 명령만 사용한다. `preview`는 기존 설계대로 수집·DB 갱신은 수행하지만 메일을 보내지 않는다.
+
+## 작성 JSON
+
+예제: `reports/examples/insurance-supervision-20261104.json`. 예제 폴더는 자동 첨부 검색 대상이 아니며 초안 상태이다.
+
+- 공통: `report_id`, `revision`, `status`, `kind`, `title`, `as_of`, `stage`, `selection`, `overview`, `key_points`, `business_reference`, `verification_scope`, `sources`
+- `selection`: `relevance`, `explanation_value`, `evidence`를 각각 설명한다.
+- `sources`: 수집 항목의 `item_id`, `content_hash`, `label`, `url`을 보존한다.
+- `key_points`: 입법은 `topic/current/proposed/impact`, 그 외는 `topic/detail/timing` 표이다.
+- 입법 `kind=legislation`: `industry_impact` 필수이다. 보험업법 등 확정 제도 변경의 종류와 발의·심사 단계의 상태를 혼동하지 않는다.
+- 개정본: `revision`을 올리고 `change_note`를 작성한다. 같은 `report_id`의 현행 작성본 하나만 `reports/*.json`에 둔다. 과거 작성본은 하위 폴더로 보존한다.
+
+미확인된 현행 조문·기한은 빈틈을 추정으로 채우지 않고 확인 범위를 제한하거나 작성 대상에서 보류한다. 문서는 정해진 글자 크기에서 1페이지를 넘으면 생성에 실패하므로 본문을 줄이거나 상세자료를 분리한다.
+
+## 배포와 추적
+
+- `reports/*.json` 중 ready만 읽는다. 발송되는 원문 항목 전체와 연결 버전이 일치해야 한다. 묶음 보고서에 이미 발송되어 이번 배치에 없는 항목을 연결하면 자동 첨부를 보류하며 오류로 알린다.
+- PDF 생성·검증 실패나 버전 불일치는 SMTP 이전에 중단한다. 잘못된 첨부를 조용히 빼고 발송하지 않는다.
+- 기본 출력: `output/pdf/<report_id>-v<revision>.pdf`.
+- 실제 발송 보관: `logs/deliveries/YYYY-MM-DD/<회차>-<첨부파일명>`; JSON에 SHA-256, 크기, 연결 항목을 남긴다.
+- 수집 항목은 그대로인 채 PDF만 바뀌어도 모호한 SMTP 재시도 차단을 우회하지 않도록 기존 발송 지문 정책을 유지한다.
+- 승인한 컬러 시안을 사용한다. 파란색 제목·표, 옅은 주황색 진행 단계 안내, 하단 공식 출처 영역을 둔다. `법무팀` 표시와 회사 정형 보고서 제목 박스는 사용하지 않는다.
+- 한글 TTF 글꼴은 KoPubWorld Light·Bold를 우선하며 Linux에서는 NanumGothic·Bold를 사용할 수 있다. 다른 글꼴은 `report-build --font /path/light.ttf --bold-font /path/bold.ttf`로 두 개를 함께 지정한다. PDF에 글꼴을 내장하므로 수신자에게 별도 글꼴 설치가 필요하지 않다.
+- PDF 생성에 ReportLab을 사용하며 신규 외부 API를 호출하지 않는다. 생성이 실패하면 기존 PDF를 보존한다.
+
+
+## 국회 수집 범위와 점검
+
+발의·제출은 최근 30일 제안일 범위 전체 페이지를 확인한다. 위원회안·대안, 본회의 부의, 최근 30일 가결 목록도 확인한다. 위원회안·대안 목록을 법사위 회부로 단정하지 않는다. 발의 시점 이후 심사진행상태가 바뀌면 원문 내용 변경으로 포착하지만 **30일보다 오래된 모든 계류안의 위원회 심사 전 과정을 완전히 추적하는 기능은 아니다.** 공포·하위규정은 소관 기관 공식 자료와 함께 확인해야 한다.
+
+가결 검색은 표시명 대신 공식 코드 `PRC_0013/BKC_0004`를 보내고 시작·종료 날짜를 함께 지정한다. 페이지 반복, 목록 구조 변경, 페이지 상한 초과는 정상 0건으로 숨기지 않고 수집 실패로 처리한다. `[source-diagnostics]`에 단계별 페이지·조회 행·대상 법률 일치 건수를 기록하며, 제안이유 본문 미확보는 별도 경고한다. 반복 조회의 성공과 신규 동향 발견은 구분한다.
+
+## 채택한 컬러 서식 (2026.11.09.)
+
+입법 리포트는 입법 취지·진행경과 → 주요 변경사항 → 보험업 관련 영향 → 업무에 참고할 사항 → 공식 출처·확인 범위로 구성한다. 제도변경 리포트도 같은 시각 서식을 사용한다. 입법의 미확정 상태와 국회 가결·공포·시행을 구별하고, ready 작성본에는 검토용 시안 표시를 하지 않는다. 제목과 기준일은 작성 JSON에서 가져오며 부서명을 임의로 찍지 않는다.
+
+`display_title`로 줄바꿈을 포함한 표제를 지정할 수 있고, `reference_label`에는 의안번호·발의자 등 식별 정보를 적을 수 있다. `comparison_basis`로 현행 대비 설명의 확인 범위를 명시한다. 표시는 개정안 중심의 3열로 간결하게 구성하되 `current` 등 원문의 현행 대비 데이터는 작성 JSON에 보존한다.
+
+`reports/examples/insurance-sales-company-bill-2221395.json`은 실제 국회 원문과 심사정보에 근거한 시안이다. 2026.9.16. 발의된 법안이며 당일 신규 법안이라는 의미가 아니다. 미확정 상태·연계 법안·부칙안 시행조건을 명시한다. 예제는 draft이며 자동 첨부되지 않는다. `docs/reviews/build_legislation_color_mockup.py`는 운영 PDF 생성기로 예제를 재생성한다.

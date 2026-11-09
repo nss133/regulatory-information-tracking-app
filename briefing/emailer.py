@@ -5,6 +5,7 @@ from email.headerregistry import Address
 from email.message import EmailMessage
 
 from briefing.config import EmailConfig
+from briefing.reports import PdfAttachment
 
 
 def send_error_alert(*, cfg: EmailConfig, errors: list[str], run_date: str) -> None:
@@ -38,6 +39,7 @@ def send_error_alert(*, cfg: EmailConfig, errors: list[str], run_date: str) -> N
 def send_email(
     *, cfg: EmailConfig, subject: str, html_body: str, text_body: str,
     message_id: str | None = None,
+    attachments: tuple[PdfAttachment, ...] = (),
 ) -> str:
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -48,6 +50,12 @@ def send_email(
 
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
+
+    for attachment in attachments:
+        if not attachment.content.startswith(b"%PDF-"):
+            raise ValueError(f"올바른 PDF가 아님: {attachment.filename}")
+        msg.add_attachment(attachment.content, maintype="application", subtype="pdf",
+                           filename=attachment.filename)
 
     password = cfg.smtp.password()
     with smtplib.SMTP(cfg.smtp.host, cfg.smtp.port, timeout=30) as s:

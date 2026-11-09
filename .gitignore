@@ -11,3 +11,10 @@ logs/
 # 로컬 도구 상태 (Claude Code / OMC)
 .claude/
 .omc/
+
+# 로컬 시안·생성 PDF·작성 중인 공용 리포트
+/output/
+/tmp/
+/.codex-staging/
+/data
+/reports/*.json

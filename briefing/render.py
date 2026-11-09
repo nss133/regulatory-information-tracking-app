@@ -10,6 +10,7 @@ from typing import Any, Optional
 from jinja2 import Environment, FileSystemLoader
 
 from briefing.db import StoredItem
+from briefing.presentation import compact_attachments
 from briefing.deadlines import deadline_urgency
 from briefing.sources.registry import SOURCE_SPECS
 from briefing.sources.scourt import parse_decision_date
@@ -47,6 +48,7 @@ class RenderItem:
     child_items: list["RenderItem"] = field(default_factory=list)
     relevance_score: int = 0
     relevance_evidence: str = ""
+    report_files: list[str] = field(default_factory=list)
     company_flag: bool = False      # ★ 당사 직결 배지 (relevance_score >= 임계)
 
 
@@ -99,6 +101,7 @@ def render_email(
     template_dir: str | Path,
     subject: str,
     run_date: str,
+    report_attachments=(),
 ) -> RenderedEmail:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -106,6 +109,7 @@ def render_email(
         # (대법원 사건명에 '<...>' 패턴이 들어가 메일 본문이 잘려 보이는 문제 방지)
         autoescape=True,
     )
+    env.filters["compact_attachments"] = compact_attachments
     tpl = env.get_template("email.html.j2")
 
     # 1단계: 일부 항목은 목록에서 완전히 제외
@@ -234,6 +238,7 @@ def render_email(
                 attachments=atts,
                 deadlines=deadline_values,
                 child_items=[],
+                report_files=[a.filename for a in report_attachments if it.id in a.item_ids],
                 relevance_score=rel_score,
                 relevance_evidence=it.relevance_evidence or "",
                 company_flag=rel_score >= RELEVANCE_STAR_THRESHOLD,
@@ -497,6 +502,7 @@ def render_email_html(
     template_dir: str | Path,
     subject: str,
     run_date: str,
+    report_attachments=(),
 ) -> str:
     """기존 호출부 호환용 HTML 전용 래퍼."""
     return render_email(
@@ -504,4 +510,5 @@ def render_email_html(
         template_dir=template_dir,
         subject=subject,
         run_date=run_date,
+        report_attachments=report_attachments,
     ).html

@@ -56,6 +56,8 @@ from briefing.jid_watch import (
 )
 from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email, render_email_html
+from briefing.reports import prepare_reports, report_candidates
+from briefing.reports_cli import register_commands as register_report_commands
 from briefing.sanity import append_log as append_sanity_log
 from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
@@ -216,6 +218,9 @@ def _fetch_all(cfg) -> tuple[list, list[str], dict[str, tuple[int, str | None, f
             return c.code, c.fetch_latest(), None, _time.perf_counter() - t0
         except Exception as e:
             return c.code, [], str(e), _time.perf_counter() - t0
+        finally:
+            if getattr(c, 'diagnostics', None):
+                print('[source-diagnostics] ' + json.dumps({'source':c.code,'stages':c.diagnostics}, ensure_ascii=False))
 
     fetched: list = []
     errors: list[str] = []
@@ -410,12 +415,14 @@ def cmd_preview(args) -> int:
         subject="",
         run_date=run_date,
     )
+    report_attachments = tuple(prepare_reports([it for it in pending if it.id in draft.visible_item_ids]))
     subject = (
         f"{cfg.email.subject_prefix} {run_date[:10]} "
         f"(브리핑 {draft.visible_count}건 · 수집 {len(pending)}건)"
     )
     html = render_email_html(
         items=pending, template_dir=Path("templates"), subject=subject, run_date=run_date,
+        report_attachments=report_attachments,
     )
     out_path = Path(args.out)
     out_path.write_text(html, encoding="utf-8")
@@ -794,6 +801,12 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
     ]
     visible_ids = set(draft.visible_item_ids)
     suppressed_ids = [it.id for it in pending if it.id not in visible_ids]
+    candidates = report_candidates(visible_pending)
+    candidate_path = Path('logs') / 'report-candidates' / f'{run_id}.json'
+    candidate_path.parent.mkdir(parents=True, exist_ok=True)
+    candidate_path.write_text(json.dumps(candidates, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    print(f'[reports] 검토 후보 {len(candidates)}건: {candidate_path}')
+    report_attachments = tuple(prepare_reports(visible_pending))
     subject = (
         f"{cfg.email.subject_prefix} {run_date[:10]} "
         f"(브리핑 {draft.visible_count}건 · 수집 {len(pending)}건)"
@@ -803,9 +816,12 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
         template_dir=Path("templates"),
         subject=subject,
         run_date=run_date,
+        report_attachments=report_attachments,
     )
     html = rendered.html
     text = _render_text(visible_pending)
+    if report_attachments:
+        text += "\n상세 리포트(PDF 첨부): " + ", ".join(a.filename for a in report_attachments) + "\n"
     print(
         f"[briefing] 수집 후보 {len(pending)}건, "
         f"메일 노출 {len(visible_pending)}건, 정책 제외 {len(suppressed_ids)}건"
@@ -865,6 +881,7 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                 recipients=cfg.email.to,
                 html=html,
                 items=visible_pending,
+                attachments=report_attachments,
             )
             update_delivery_run(conn, run_id, archive_path=str(archive_path))
             prepare_delivery_attempt(
@@ -874,6 +891,7 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                 send_email(
                     cfg=cfg.email, subject=subject, html_body=html, text_body=text,
                     message_id=message_id,
+                    attachments=report_attachments,
                 )
             except Exception as smtp_error:
                 # 명시적인 SMTP 예외는 재시도 가능한 실패다. send_email이 정상 반환한
@@ -1102,16 +1120,19 @@ def cmd_resend_last(args) -> int:
     batch = select_last_sent_batch(conn)
 
     subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (재발송: {len(batch)}건)"
+    draft = render_email(items=batch, template_dir=Path('templates'), subject=subject, run_date=now_iso(cfg.timezone))
+    reports = tuple(prepare_reports([it for it in batch if it.id in draft.visible_item_ids]))
     html = render_email_html(
         items=batch,
         template_dir=Path("templates"),
         subject=subject,
         run_date=now_iso(cfg.timezone),
+        report_attachments=reports,
     )
     text = _render_text(batch)
 
     if cfg.email.enabled:
-        send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text)
+        send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text, attachments=reports)
         print(f"재발송 완료: {len(batch)}건")
     else:
         print("email.enabled=false 이므로 발송하지 않았습니다.")
@@ -1442,6 +1463,7 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--max-log-mb", type=int, default=5)
             sp.add_argument("--keep-logs", type=int, default=5)
         sp.set_defaults(_fn=fn)
+    register_report_commands(sub)
     return p
 
 

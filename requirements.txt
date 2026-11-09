@@ -30,3 +30,7 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 
 anthropic==0.97.0
+
+reportlab==4.4.5
+PyMuPDF==1.26.4; python_version < "3.10"
+PyMuPDF==1.27.2.2; python_version >= "3.10"
