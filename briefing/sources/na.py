@@ -5,6 +5,7 @@ import logging
 from dataclasses import replace
 from datetime import datetime, timedelta
 from briefing.http import HttpClient
+from briefing.legislation import late_stage
 from briefing.sources.html import soupify
 from briefing.sources.registry import SourceConnector
 from briefing.types import FetchedItem
@@ -100,7 +101,8 @@ def _bill_url(bill_id: str) -> str:
 
 class NaAssemblyConnector(SourceConnector):
     """
-    국회 의안정보시스템 공식 검색의 발의·제출 및 3개 후속 마일스톤을 추적합니다.
+    국회 의안정보시스템 공식 검색의 발의·제출, 체계·자구심사 및 후속 마일스톤을 수집합니다.
+    실제 메일 노출은 체계·자구심사 이후 단계로 제한합니다.
 
     1. 위원회안·대안   (_fetch_plenary_propose)  — 공식 위원회안(대안) 목록; 법사위 회부로 단정하지 않음
     2. 본회의 부의   (_fetch_before_propose)   — 법사위 통과 → 본회의 상정 대기(통과 임박)
@@ -118,6 +120,7 @@ class NaAssemblyConnector(SourceConnector):
         self.diagnostics = []
         items: list[FetchedItem] = []
         items.extend(self._fetch_recent_proposals())
+        items.extend(self._fetch_systematic_review())
         items.extend(self._fetch_plenary_propose())
         items.extend(self._fetch_before_propose())
         items.extend(self._fetch_plenary_pass())
@@ -179,7 +182,12 @@ class NaAssemblyConnector(SourceConnector):
             milestone="발의·제출", date_col=3,
         )
 
-    def _fetch_search_pages(self, filters: dict, *, milestone: str, date_col: int) -> list[FetchedItem]:
+    def _fetch_systematic_review(self) -> list[FetchedItem]:
+        # PRGRS_0003 = 체계자구심사. 제안일은 단계 진입일이 아니므로 기간 컷오프에 쓰지 않는다.
+        return self._fetch_search_pages({'srngPrgrsSttsCd':'PRGRS_0003'},
+                                        milestone='체계·자구심사', date_col=None)
+
+    def _fetch_search_pages(self, filters: dict, *, milestone: str, date_col: int | None) -> list[FetchedItem]:
         params = {"reqPageId": "billSrch", "detailedTab": "billDtl",
                   "billKind": "BKC_0004", "ageFrom": "22", "ageTo": "22",
                   "rows": "100", "schSorting": "dateDesc", **filters}
@@ -221,7 +229,7 @@ class NaAssemblyConnector(SourceConnector):
         return list(result.values())
 
     def _parse_sch_html(
-        self, html: str, *, milestone: str, date_col: int,
+        self, html: str, *, milestone: str, date_col: int | None,
         state_filter: str | None = None,
     ) -> list[FetchedItem]:
         """findSchPaging 공통 HTML 파서.
@@ -235,6 +243,9 @@ class NaAssemblyConnector(SourceConnector):
             tds = tr.find_all("td")
             if len(tds) < 3:
                 continue
+
+            if milestone == '체계·자구심사' and (len(tds) < 8 or not late_stage(tds[7].get_text(strip=True))):
+                raise ValueError('국회 체계·자구심사 검색조건과 응답 상태가 일치하지 않음')
 
             # 심사진행상태 필터 (td[7])
             if state_filter is not None:
@@ -257,7 +268,7 @@ class NaAssemblyConnector(SourceConnector):
 
             # 날짜 파싱
             published_at: datetime | None = None
-            if len(tds) > date_col:
+            if date_col is not None and len(tds) > date_col:
                 date_text = normalize_ws(tds[date_col].get_text(" ", strip=True))
                 published_at = parse_yyyy_mm_dd(date_text)
 
@@ -267,7 +278,7 @@ class NaAssemblyConnector(SourceConnector):
 
             # raw_text는 기존 발송 해시에 포함되지 않는다. 단계도 제목에 표시하여
             # 같은 의안의 심사 단계 변경을 신규 버전으로 포착한다.
-            stage = tds[7].get_text(strip=True) if milestone == '발의·제출' and len(tds) > 7 else ''
+            stage = tds[7].get_text(strip=True) if milestone in ('발의·제출','체계·자구심사') and len(tds) > 7 else ''
             stage_label = f'{milestone} · {stage}' if stage else milestone
             items.append(
                 FetchedItem(
@@ -278,7 +289,7 @@ class NaAssemblyConnector(SourceConnector):
                     url=_bill_url(bill_id),
                     published_at=published_at,
                     attachments=[],
-                    raw_text=(f"심사진행상태: {tds[7].get_text(strip=True)}" if milestone == "발의·제출" and len(tds) > 7 else None),
+                    raw_text=(f"심사진행상태: {stage}\n제안일자: {tds[3].get_text(strip=True)}" if stage else None),
                 )
             )
 

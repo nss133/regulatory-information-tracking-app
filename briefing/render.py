@@ -10,6 +10,7 @@ from typing import Any, Optional
 from jinja2 import Environment, FileSystemLoader
 
 from briefing.db import StoredItem
+from briefing.legislation import reportable_legislation
 from briefing.presentation import compact_attachments
 from briefing.deadlines import deadline_urgency
 from briefing.sources.registry import SOURCE_SPECS
@@ -49,6 +50,7 @@ class RenderItem:
     relevance_score: int = 0
     relevance_evidence: str = ""
     report_files: list[str] = field(default_factory=list)
+    report_previews: list[dict] = field(default_factory=list)
     company_flag: bool = False      # ★ 당사 직결 배지 (relevance_score >= 임계)
 
 
@@ -114,6 +116,8 @@ def render_email(
 
     # 1단계: 일부 항목은 목록에서 완전히 제외
     def _should_exclude(it: StoredItem) -> bool:
+        if not reportable_legislation(it):
+            return True
         title = (it.title or "")
         title_lower = title.lower()
         if "시상" in title_lower:
@@ -239,6 +243,8 @@ def render_email(
                 deadlines=deadline_values,
                 child_items=[],
                 report_files=[a.filename for a in report_attachments if it.id in a.item_ids],
+                report_previews=[{'cid':a.preview_cid,'filename':a.filename,'title':a.title or a.filename}
+                                 for a in report_attachments if it.id in a.item_ids and a.preview_png],
                 relevance_score=rel_score,
                 relevance_evidence=it.relevance_evidence or "",
                 company_flag=rel_score >= RELEVANCE_STAR_THRESHOLD,
@@ -471,7 +477,7 @@ def render_email(
     ]
 
     html = tpl.render(
-        subject=subject, run_date=run_date, sections=sections,
+        subject=subject, run_date=run_date, sections=sections, report_attachments=report_attachments,
     )
     try:
         from premailer import transform  # type: ignore

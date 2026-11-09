@@ -161,3 +161,12 @@ def render_report_pdf(report: dict, out: str | Path, *, font_path: str | None = 
     finally:
         Path(temporary).unlink(missing_ok=True)
     return out
+
+
+def render_report_preview(content: bytes) -> bytes:
+    """PDF 첫 페이지 상단을 메일용 PNG로 렌더링한다. 외부 이미지 서버는 쓰지 않는다."""
+    import fitz
+    with fitz.open(stream=content, filetype='pdf') as document:
+        page = document[0]
+        clip = fitz.Rect(0, 0, page.rect.width, min(560, page.rect.height))
+        return page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), clip=clip, alpha=False).tobytes('png')

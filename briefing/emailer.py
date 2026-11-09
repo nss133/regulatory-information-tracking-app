@@ -51,6 +51,14 @@ def send_email(
     msg.set_content(text_body)
     msg.add_alternative(html_body, subtype="html")
 
+    # CID images belong to the HTML alternative, so clients can display them offline.
+    html_part = msg.get_payload()[-1]
+    for attachment in attachments:
+        if attachment.preview_png:
+            html_part.add_related(attachment.preview_png, maintype="image", subtype="png",
+                                  cid=f"<{attachment.preview_cid}>", disposition="inline",
+                                  filename=attachment.report_id + "-preview.png")
+
     for attachment in attachments:
         if not attachment.content.startswith(b"%PDF-"):
             raise ValueError(f"올바른 PDF가 아님: {attachment.filename}")

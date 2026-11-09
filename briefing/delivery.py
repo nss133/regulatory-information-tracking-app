@@ -43,7 +43,13 @@ def archive_delivery(
             raise ValueError("잘못된 첨부파일명")
         target = day_dir / f"{stem}-{attachment.filename}"
         target.write_bytes(attachment.content)
-        attachment_manifest.append({"filename": attachment.filename, "archive_file": target.name,
+        preview = None
+        if attachment.preview_png:
+            preview_name = f"{stem}-{attachment.report_id or attachment.sha256[:16]}-preview.png"
+            (day_dir / preview_name).write_bytes(attachment.preview_png)
+            preview = {"archive_file": preview_name, "cid": attachment.preview_cid,
+                       "sha256": hashlib.sha256(attachment.preview_png).hexdigest()}
+        attachment_manifest.append({"preview": preview, "filename": attachment.filename, "archive_file": target.name,
             "sha256": attachment.sha256, "size": len(attachment.content),
             "report_id": attachment.report_id, "item_ids": list(attachment.item_ids)})
     manifest = {

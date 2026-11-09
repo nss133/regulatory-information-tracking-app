@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
+from briefing.legislation import reportable_legislation
 
 OFFICIAL_HOSTS = ('assembly.go.kr', 'fsc.go.kr', 'fss.or.kr', 'scourt.go.kr',
                   'law.go.kr', 'ftc.go.kr', 'kofiu.go.kr', 'pipc.go.kr',
@@ -24,12 +25,20 @@ class PdfAttachment:
     content: bytes
     report_id: str = ''
     item_ids: tuple[str, ...] = ()
+    preview_png: bytes = b''
+    title: str = ''
 
     def __post_init__(self):
         if Path(self.filename).name != self.filename or not self.filename.endswith('.pdf') or any(ord(c) < 32 for c in self.filename):
             raise ValueError('잘못된 PDF 첨부파일명')
+        if self.preview_png and not self.preview_png.startswith(b'\x89PNG\r\n\x1a\n'):
+            raise ValueError('미리보기는 PNG 형식이어야 함')
         if not self.content.startswith(b'%PDF-'):
             raise ValueError('PDF 형식의 첨부파일만 허용')
+
+    @property
+    def preview_cid(self):
+        return 'briefing-report-' + self.sha256[:20] if self.preview_png else ''
 
     @property
     def sha256(self):
@@ -92,6 +101,8 @@ def report_candidates(items) -> list[dict]:
     """키워드는 검토 순서만 제안한다. 선정의 세 조건을 충족했다고 자동 판정하지 않는다."""
     candidates=[]
     for it in items:
+        if not reportable_legislation(it):
+            continue
         title=it.title or ''
         body=(it.raw_text or '') if it.source in ('na','scourt') else ''
         text=title+' '+body
@@ -137,7 +148,10 @@ def prepare_reports(items, *, report_dir='reports', output_dir='output/pdf') -> 
         seen.add(key)
         name=f"{key}-v{report['revision']}.pdf"
         pdf=build_pdf(report,Path(output_dir)/name)
-        attachments.append(PdfAttachment(name,pdf.read_bytes(),key,tuple(s['item_id'] for s in sources)))
+        content = pdf.read_bytes()
+        from briefing.report_pdf import render_report_preview
+        preview = render_report_preview(content)
+        attachments.append(PdfAttachment(name,content,key,tuple(s['item_id'] for s in sources),preview,report['title'].replace('\n',' ')))
     if sum(len(a.content) for a in attachments) > 20*1024*1024:
         raise ValueError('상세 리포트 첨부 합계가 20MB를 초과함')
     return attachments

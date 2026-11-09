@@ -55,10 +55,22 @@ class ReportsTests(unittest.TestCase):
         self.assertEqual(mime[0].get_content_type(),'application/pdf')
         self.assertEqual(mime[0].get_filename(),atts[0].filename)
         self.assertEqual(mime[0].get_payload(decode=True),atts[0].content)
+        images=[part for part in msg.walk() if part.get_content_type()=='image/png']
+        self.assertEqual(len(images),1)
+        self.assertEqual(images[0].get_content_disposition(),'inline')
+        self.assertEqual(str(images[0]['Content-ID']),'<'+atts[0].preview_cid+'>')
+        self.assertEqual(images[0].get_payload(decode=True),atts[0].preview_png)
+        self.assertIn('cid:'+atts[0].preview_cid,msg.get_body(preferencelist=('html',)).get_content())
+        self.assertIn('상세 리포트 PDF 1건 첨부',rendered.html)
+        self.assertIn('max-width:1240px',rendered.html)
+
         manifest=archive_delivery(archive_root=self.root/'archive',run_date='2026-11-09T12:00:00+09:00',
             run_id='test123456',subject='검증',message_id='<test>',recipients=['test@example.com'],html=rendered.html,items=[it],attachments=atts)
         a=json.loads(manifest.read_text())['attachments'][0]
         self.assertEqual(a['sha256'],atts[0].sha256)
+        self.assertEqual(a['preview']['cid'],atts[0].preview_cid)
+        self.assertEqual((manifest.parent/a['preview']['archive_file']).read_bytes(),atts[0].preview_png)
+
         self.assertEqual((manifest.parent/a['archive_file']).read_bytes(),atts[0].content)
         self.assertEqual(rendered.visible_item_ids,(it.id,))
 
