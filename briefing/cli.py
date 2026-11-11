@@ -58,6 +58,8 @@ from briefing.render import RELEVANCE_STAR_THRESHOLD
 from briefing.render import render_email, render_email_html
 from briefing.reports import prepare_reports, report_candidates
 from briefing.reports_cli import register_commands as register_report_commands
+from briefing.editorial import load_attachment_links, load_editorial
+from briefing.editorial_cli import register_commands as register_editorial_commands
 from briefing.sanity import append_log as append_sanity_log
 from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
@@ -409,11 +411,14 @@ def cmd_preview(args) -> int:
     )
 
     run_date = now_iso(cfg.timezone)
+    editorial_issues = load_editorial(Path('editorial') / f'{run_date[:10]}.json', pending, as_of=run_date)
+    attachment_links = load_attachment_links(conn, pending)
     draft = render_email(
         items=pending,
         template_dir=Path("templates"),
         subject="",
         run_date=run_date,
+        editorial_issues=editorial_issues, attachment_links=attachment_links,
     )
     report_attachments = tuple(prepare_reports([it for it in pending if it.id in draft.visible_item_ids]))
     subject = (
@@ -423,6 +428,7 @@ def cmd_preview(args) -> int:
     html = render_email_html(
         items=pending, template_dir=Path("templates"), subject=subject, run_date=run_date,
         report_attachments=report_attachments,
+        editorial_issues=editorial_issues, attachment_links=attachment_links,
     )
     out_path = Path(args.out)
     out_path.write_text(html, encoding="utf-8")
@@ -787,11 +793,14 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
             print(f"[jid-watch] 오류 (무시): {e}", file=sys.stderr)
 
     run_date = now_iso(cfg.timezone)
+    editorial_issues = load_editorial(Path('editorial') / f'{run_date[:10]}.json', pending, as_of=run_date)
+    attachment_links = load_attachment_links(conn, pending)
     draft = render_email(
         items=pending,
         template_dir=Path("templates"),
         subject="",
         run_date=run_date,
+        editorial_issues=editorial_issues, attachment_links=attachment_links,
     )
     pending_by_id = {it.id: it for it in pending}
     visible_pending = [
@@ -817,9 +826,10 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
         subject=subject,
         run_date=run_date,
         report_attachments=report_attachments,
+        editorial_issues=editorial_issues, attachment_links=attachment_links,
     )
     html = rendered.html
-    text = _render_text(visible_pending)
+    text = rendered.text
     if report_attachments:
         text += "\n상세 리포트(PDF 첨부): " + ", ".join(a.filename for a in report_attachments) + "\n"
     print(
@@ -882,6 +892,7 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                 html=html,
                 items=visible_pending,
                 attachments=report_attachments,
+                editorial_issues=editorial_issues,
             )
             update_delivery_run(conn, run_id, archive_path=str(archive_path))
             prepare_delivery_attempt(
@@ -1119,17 +1130,17 @@ def cmd_resend_last(args) -> int:
     _enrich(conn, cfg, batch)
     batch = select_last_sent_batch(conn)
 
-    subject = f"{cfg.email.subject_prefix} {now_iso(cfg.timezone)[:10]} (재발송: {len(batch)}건)"
-    draft = render_email(items=batch, template_dir=Path('templates'), subject=subject, run_date=now_iso(cfg.timezone))
+    run_date = now_iso(cfg.timezone)
+    subject = f"{cfg.email.subject_prefix} {run_date[:10]} (재발송: {len(batch)}건)"
+    editorial_issues = load_editorial(Path('editorial') / f'{run_date[:10]}.json', batch, as_of=run_date)
+    attachment_links = load_attachment_links(conn, batch)
+    draft = render_email(items=batch, template_dir=Path('templates'), subject=subject, run_date=run_date,
+                         editorial_issues=editorial_issues, attachment_links=attachment_links)
     reports = tuple(prepare_reports([it for it in batch if it.id in draft.visible_item_ids]))
-    html = render_email_html(
-        items=batch,
-        template_dir=Path("templates"),
-        subject=subject,
-        run_date=now_iso(cfg.timezone),
-        report_attachments=reports,
-    )
-    text = _render_text(batch)
+    rendered = render_email(items=batch, template_dir=Path('templates'), subject=subject, run_date=run_date,
+                            report_attachments=reports, editorial_issues=editorial_issues,
+                            attachment_links=attachment_links)
+    html, text = rendered.html, rendered.text
 
     if cfg.email.enabled:
         send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text, attachments=reports)
@@ -1464,6 +1475,7 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--keep-logs", type=int, default=5)
         sp.set_defaults(_fn=fn)
     register_report_commands(sub)
+    register_editorial_commands(sub)
     return p
 
 

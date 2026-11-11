@@ -11,7 +11,8 @@ from jinja2 import Environment, FileSystemLoader
 
 from briefing.db import StoredItem
 from briefing.legislation import reportable_legislation
-from briefing.presentation import compact_attachments
+from briefing.presentation import compact_attachments, reference_attachments
+from briefing.editorial import can_pair
 from briefing.deadlines import deadline_urgency
 from briefing.sources.registry import SOURCE_SPECS
 from briefing.sources.scourt import parse_decision_date
@@ -52,6 +53,13 @@ class RenderItem:
     report_files: list[str] = field(default_factory=list)
     report_previews: list[dict] = field(default_factory=list)
     company_flag: bool = False      # ★ 당사 직결 배지 (relevance_score >= 임계)
+    issue_items: list["RenderItem"] = field(default_factory=list)
+    related_articles: tuple = ()
+    stage: str = ""
+
+    @property
+    def has_references(self):
+        return bool(self.attachments or self.issue_items or self.related_articles)
 
 
 # ★ 배지 임계점수. Phase 2 백테스트 기준: 승격(인용) 이력 7건 중 4건이 50+,
@@ -64,11 +72,19 @@ class RenderSection:
     label: str
     items: list[RenderItem]
 
+    @property
+    def source_count(self):
+        def count(item):
+            return (int(bool(item.item_id)) + sum(count(c) for c in item.child_items)
+                    + sum(count(c) for c in item.issue_items))
+        return sum(count(i) for i in self.items)
+
 
 @dataclass(frozen=True)
 class RenderedEmail:
     html: str
     visible_item_ids: tuple[str, ...]
+    text: str = ""
 
     @property
     def visible_count(self) -> int:
@@ -104,6 +120,8 @@ def render_email(
     subject: str,
     run_date: str,
     report_attachments=(),
+    editorial_issues=(),
+    attachment_links=None,
 ) -> RenderedEmail:
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -112,6 +130,7 @@ def render_email(
         autoescape=True,
     )
     env.filters["compact_attachments"] = compact_attachments
+    env.filters["reference_attachments"] = reference_attachments
     tpl = env.get_template("email.html.j2")
 
     # 1단계: 일부 항목은 목록에서 완전히 제외
@@ -186,9 +205,11 @@ def render_email(
     for it in items:
         spec = SOURCE_SPECS.get(it.source)
         source_name_ko = spec.name_ko if spec else it.source
+        effective_level = 'low' if it.last_sent_at and it.sent_hash != it.content_hash else (it.importance or 'low')
+        file_links = (attachment_links or {}).get(it.id) if effective_level != 'low' else None
         atts = [
             RenderAttachment(label=a.get("label", "첨부"), url=a.get("url", ""))
-            for a in _safe_json_loads(it.attachments_json)
+            for a in (file_links or _safe_json_loads(it.attachments_json))
             if a.get("url")
         ]
         deadline_values: list[RenderDeadline] = []
@@ -209,6 +230,10 @@ def render_email(
         is_updated = bool(it.last_sent_at) and (it.sent_hash != it.content_hash)
         importance = (it.importance or "low")
         published_at = it.published_at
+        if not published_at and it.source == 'kftc' and effective_level != 'low':
+            registered = re.search(r'등록\s*:\s*(\d{4}-\d{2}-\d{2})', it.raw_text or '')
+            if registered:
+                published_at = registered[1]
         if it.source == "scourt" and it.category == "case_law" and not published_at:
             decision_date = parse_decision_date(it.raw_text)
             if decision_date is not None:
@@ -284,6 +309,65 @@ def render_email(
     for k in list(by_importance.keys()):
         by_importance[k] = sorted(by_importance[k], key=_sort_key, reverse=True)
 
+    # 검토한 연결 또는 보수적인 원문 동일성 기준으로 사안을 먼저 묶는다.
+    # 기존 LOW 강등 때문에 예고문과 보도가 다른 섹션에 있어도 연결할 수 있다.
+    available = {i.item_id: i for group in by_importance.values() for i in group}
+    absorbed = set()
+    claimed = set()
+
+    def merge_issue(primary, members, review=None):
+        levels = {'low': 0, 'medium': 1, 'high': 2}
+        level = max((i.importance for i in members), key=levels.get)
+        if level == 'low':
+            return  # LOW-only 사안은 현재 표시 유지
+        for bucket in by_importance.values():
+            if primary in bucket:
+                bucket.remove(primary)
+        primary.importance = level
+        by_importance[level].append(primary)
+        for other in members:
+            if other is primary:
+                continue
+            primary.issue_items.append(other)
+            absorbed.add(other.item_id)
+            extra = (attachment_links or {}).get(other.item_id)
+            primary.attachments.extend(
+                [RenderAttachment(a['label'], a['url']) for a in extra] if extra else other.attachments)
+            primary.report_files = list(dict.fromkeys(primary.report_files + other.report_files))
+            primary.report_previews.extend(p for p in other.report_previews if p not in primary.report_previews)
+        primary.attachments = [a for a in primary.attachments if a.url != primary.url]
+        if review:
+            primary.summary = review.summary or primary.summary
+            primary.stage = review.stage
+            primary.related_articles = review.articles
+            for value in review.deadlines:
+                urgency = deadline_urgency(value['date'], run_date)
+                deadline = RenderDeadline(value['label'], value['date'], urgency)
+                if urgency != 'expired' and deadline not in primary.deadlines:
+                    primary.deadlines.append(deadline)
+        claimed.update(i.item_id for i in members)
+
+    for review in editorial_issues:
+        ids = [s['item_id'] for s in review.sources]
+        if not any(i in available for i in ids):
+            continue
+        if not all(i in available for i in ids):
+            raise ValueError('편집 연결에 메일 정책 제외 원문이 포함됨')
+        merge_issue(available[review.primary_item_id], [available[i] for i in ids], review)
+
+    for notice in list(available.values()):
+        if notice.item_id in claimed or notice.category_label not in ('입법/예고', '행정예고'):
+            continue
+        matches = [p for p in available.values() if p.item_id not in claimed and can_pair(p, notice)]
+        if len(matches) == 1:
+            press = matches[0]
+            reverse = [n for n in available.values() if n.item_id not in claimed and can_pair(press, n)]
+            if len(reverse) == 1:
+                merge_issue(notice, [notice, press])
+    for level in by_importance:
+        by_importance[level] = sorted(
+            [i for i in by_importance[level] if i.item_id not in absorbed], key=_sort_key, reverse=True)
+
     # 금융감독원·금융정보분석원 자료가 금융위원회 자료와 60% 이상 제목 일치 시
     # FSC 하위로 들여쓰기. 공동 보도자료의 중복 노출을 줄이되 원문 링크는 보존한다.
     def _title_words(s: str) -> set[str]:
@@ -314,28 +398,6 @@ def render_email(
                 best_fsc.child_items.append(item)
                 matched_secondary_ids.add(id(item))
         by_importance[k] = [i for i in L if id(i) not in matched_secondary_ids]
-
-    # 같은 부처 내에서 보도자료와 입법/행정예고의 제목 유사도가 60% 이상이면
-    # 입법/행정예고를 보도자료 하위로 들여쓰기
-    for k in list(by_importance.keys()):
-        L = by_importance[k]
-        child_ids: set[int] = set()
-        for item in L:
-            if item.category_label != "보도자료":
-                continue
-            for other in L:
-                if id(other) == id(item):
-                    continue
-                if other.source_code != item.source_code:
-                    continue
-                if other.category_label not in ("입법/예고", "행정예고"):
-                    continue
-                if id(other) in child_ids:
-                    continue
-                if _title_similarity(item.title, other.title) >= 0.6:
-                    item.child_items.append(other)
-                    child_ids.add(id(other))
-        by_importance[k] = [i for i in L if id(i) not in child_ids]
 
     # MEDIUM 중요도 내에서, 거의 동일한 제목(공백/기호 무시)이 중복될 경우
     # 가장 최신 항목만 남기고 나머지는 제거합니다.
@@ -492,6 +554,8 @@ def render_email(
             visible_ids.append(item.item_id)
         for child in item.child_items:
             _collect(child)
+        for linked in item.issue_items:
+            _collect(linked)
 
     for section in sections:
         for item in section.items:
@@ -499,7 +563,32 @@ def render_email(
 
     # 한 원문이 중복 그룹에 들어가도 발송 상태는 한 번만 갱신한다.
     unique_ids = tuple(dict.fromkeys(visible_ids))
-    return RenderedEmail(html=html, visible_item_ids=unique_ids)
+    text_lines = [subject, run_date[:10], '']
+    def append_text(item):
+        text_lines.extend([item.title, item.url])
+        if item.stage:
+            text_lines.append(item.stage)
+        if item.summary:
+            text_lines.extend(item.summary.split(' / '))
+        for d in item.deadlines:
+            text_lines.append(f'{d.label} {d.date}')
+        for a in item.attachments:
+            text_lines.append(f'첨부: {a.label} {a.url}')
+        for linked in item.issue_items:
+            text_lines.append(f'같은 사안: {linked.title} {linked.url}')
+        for a in item.related_articles:
+            text_lines.append(f'관련 보도: {a.title} ({a.publisher} · {a.published_at}) {a.url}\n읽을 이유: {a.why_read}')
+        if item.report_files:
+            text_lines.append('상세 PDF 첨부: ' + ', '.join(item.report_files))
+        text_lines.append('')
+        for child in item.child_items:
+            append_text(child)
+    for section in sections:
+        if section.items:
+            text_lines.append(section.label)
+            for item in section.items:
+                append_text(item)
+    return RenderedEmail(html=html, visible_item_ids=unique_ids, text='\n'.join(text_lines))
 
 
 def render_email_html(
@@ -509,6 +598,8 @@ def render_email_html(
     subject: str,
     run_date: str,
     report_attachments=(),
+    editorial_issues=(),
+    attachment_links=None,
 ) -> str:
     """기존 호출부 호환용 HTML 전용 래퍼."""
     return render_email(
@@ -517,4 +608,6 @@ def render_email_html(
         subject=subject,
         run_date=run_date,
         report_attachments=report_attachments,
+        editorial_issues=editorial_issues,
+        attachment_links=attachment_links,
     ).html

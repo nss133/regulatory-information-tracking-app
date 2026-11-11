@@ -133,9 +133,37 @@
 .email-content { padding:0; overflow-wrap:anywhere; }
 .item-report { margin:10px 0; padding:12px 14px; background:#edf5fd; border:1px solid #bfd4e9; border-left:4px solid #245f8c; color:#183957; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
 .report-preview { display:block; width:100%; max-width:740px; height:auto; margin:10px 0 4px; border:1px solid #c8d7e7; }
+
+/* 주요 항목만 참고자료를 오른쪽에 배치한다. LOW의 본문·첨부 배치는 유지한다. */
+.story-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+.main-story { width:68%; vertical-align:top; padding:0 20px 0 0; }
+.reference-rail { width:32%; vertical-align:top; padding:0 0 0 18px; border-left:1px solid #dce3eb; font-size:12px; line-height:1.6; }
+.ref-head { font-weight:600; color:#42556a; margin-bottom:5px; }
+.ref-group + .ref-group { margin-top:12px; }
+.reference-rail a { color:#245f8c; text-decoration:underline; overflow-wrap:anywhere; }
+.ref-meta,.ref-why { color:#5e6b78; margin-top:3px; }
+.item-stage { font-size:12px; color:#965409; margin:3px 0 5px; }
+a:focus-visible { outline:2px solid #245f8c; outline-offset:3px; }
+@media screen and (max-width:760px) {
+ .story-table,.story-table>tbody,.story-table>tbody>tr,.story-table>tbody>tr>td { display:block!important; width:100%!important; box-sizing:border-box; }
+ .main-story { padding-right:0!important; }
+ .reference-rail { margin-top:10px; padding:9px 0 0!important; border-left:0!important; border-top:1px solid #dce3eb; }
+}
 </style>
   </head>
   <body>
+    {% macro references(it) -%}
+      {% if it.attachments %}<div class="ref-group"><div class="ref-head">첨부자료</div>
+        {% for a in it.attachments | reference_attachments %}<div><a href="{{ a.url }}" title="{{ a.label }}" aria-label="{{ a.label }}" style="color:#245f8c;text-decoration:underline;">{{ a.display }}</a></div>{% endfor %}
+      </div>{% endif %}
+      {% if it.issue_items %}<div class="ref-group"><div class="ref-head">같은 사안 자료</div>
+        {% for linked in it.issue_items %}{% if linked.url != it.url %}<div><a href="{{ linked.url }}" style="color:#245f8c;text-decoration:underline;">{{ linked.title }}</a></div><div class="ref-meta">{{ linked.source_name_ko }}{% if linked.published_at %} · {{ linked.published_at }}{% endif %}</div>{% endif %}{% endfor %}
+      </div>{% endif %}
+      {% if it.related_articles %}<div class="ref-group"><div class="ref-head">관련 보도</div>
+        {% for a in it.related_articles %}<div><a href="{{ a.url }}" style="color:#245f8c;text-decoration:underline;">{{ a.title }}</a></div><div class="ref-meta">{{ a.publisher }} · {{ a.published_at }}</div><div class="ref-why">읽을 이유: {{ a.why_read }}</div>{% endfor %}
+      </div>{% endif %}
+    {%- endmacro %}
+
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;"><tr><td align="center">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" class="email-container" style="width:100%;margin:0;table-layout:fixed;"><tr><td class="email-content" style="padding:0;font-family:-apple-system,BlinkMacSystemFont,Apple SD Gothic Neo,Malgun Gothic,sans-serif;font-size:14px;line-height:1.5;color:#111;">
 
@@ -154,11 +182,13 @@
             {%- elif sec_key == 'court' -%}▣ 대법원 주요판결
             {%- else -%}● LOW
             {%- endif -%}
-            &nbsp;<span style="font-weight:400; font-size:12px;">({{ sec.items|length }}건)</span>
+            &nbsp;<span style="font-weight:400; font-size:12px;">{% if sec.source_count is defined and sec.source_count > sec.items|length %}({{ sec.items|length }}개 사안 · 원문 {{ sec.source_count }}건){% else %}({{ sec.items|length }}건){% endif %}</span>
           </div>
 
           {% for it in sec.items %}
             <div class="item">
+              {% set split_refs = sec_key != 'low' and (it.attachments or it.issue_items or it.related_articles) %}
+              {% if split_refs %}<table role="presentation" class="story-table" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;table-layout:fixed;"><tr><td class="main-story" width="68%" style="width:68%;vertical-align:top;padding-right:20px;">{% endif %}
 
               <div class="item-meta">
                 <span class="tag tag-source">{{ it.source_name_ko }}</span>
@@ -172,6 +202,7 @@
               </div>
 
               <a class="item-title" href="{{ it.url }}">{% if it.company_flag %}<span class="star" title="{{ it.relevance_evidence }}">★</span> {% endif %}{{ it.title }}</a>
+              {% if it.stage %}<div class="item-stage">{{ it.stage }}</div>{% endif %}
 
               {% if it.company_flag and it.relevance_evidence %}
                 <div class="item-relevance">★ 당사 관련: {{ it.relevance_evidence }}</div>
@@ -193,7 +224,7 @@
               {% if it.report_files %}<div class="item-report" style="margin:10px 0;padding:12px 14px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:13px;line-height:1.6;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in it.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
                 {% for preview in it.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:13px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
               </div>{% endif %}
-              {% if it.attachments|length > 0 %}
+              {% if it.attachments|length > 0 and not split_refs %}
                 <div class="item-attach">
                   첨부:
                   {% for a in it.attachments | compact_attachments %}
@@ -202,10 +233,13 @@
                 </div>
               {% endif %}
 
+              {% if split_refs %}</td><td class="reference-rail" width="32%" style="width:32%;vertical-align:top;padding-left:18px;border-left:1px solid #dce3eb;font-size:12px;line-height:1.6;">{{ references(it) }}</td></tr></table>{% endif %}
               {% if it.child_items|length > 0 %}
                 <ul class="child-list">
                   {% for child in it.child_items %}
                     <li class="child-item">
+                      {% set child_refs = sec_key != 'low' and (child.attachments or child.issue_items or child.related_articles) %}
+                      {% if child_refs %}<table role="presentation" class="story-table" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;table-layout:fixed;"><tr><td class="main-story" width="68%" style="width:68%;vertical-align:top;padding-right:20px;">{% endif %}
                       <div class="item-meta">
                         <span class="tag tag-source">{{ child.source_name_ko }}</span>
                         <span class="tag tag-kind">{{ child.category_label }}</span>
@@ -216,6 +250,7 @@
                         {% if child.published_at %}<span class="item-date">{{ child.published_at }}</span>{% endif %}
                       </div>
                       <a class="item-title" href="{{ child.url }}">{% if child.company_flag %}<span class="star" title="{{ child.relevance_evidence }}">★</span> {% endif %}{{ child.title }}</a>
+                      {% if child.stage %}<div class="item-stage">{{ child.stage }}</div>{% endif %}
                       {% if child.company_flag and child.relevance_evidence %}<div class="item-relevance">★ 당사 관련: {{ child.relevance_evidence }}</div>{% endif %}
                       {% if child.deadlines|length > 0 %}<div class="item-deadlines">{% for deadline in child.deadlines %}<span class="deadline deadline-{{ deadline.urgency }}">{{ deadline.label }} {{ deadline.date }}</span>{% endfor %}</div>{% endif %}
                       {% if child.summary %}
@@ -226,7 +261,7 @@
                       {% if child.report_files %}<div class="item-report" style="margin:10px 0;padding:12px 14px;background:#edf5fd;border:1px solid #bfd4e9;border-left:4px solid #245f8c;color:#183957;font-size:13px;line-height:1.6;"><strong>이 항목의 상세 리포트 PDF가 첨부되어 있습니다.</strong><br />{% for name in child.report_files %}{{ name }}{% if not loop.last %} · {% endif %}{% endfor %}
                 {% for preview in child.report_previews %}<details class="report-preview-toggle" style="margin-top:8px;"><summary style="cursor:pointer;color:#245f8c;font-size:13px;font-weight:600;">PDF 미리보기 펼치기 / 접기</summary><img class="report-preview" src="cid:{{ preview.cid }}" alt="{{ preview.title }} — PDF 상단 미리보기. 첨부 PDF 확인" width="740" style="display:block;width:100%;max-width:740px;height:auto;" /><span style="font-size:12px;">PDF 첫 페이지 상단 미리보기 · 전체 내용은 첨부파일 확인</span></details>{% endfor %}
               </div>{% endif %}
-                      {% if child.attachments|length > 0 %}
+                      {% if child.attachments|length > 0 and not child_refs %}
                         <div class="item-attach">
                           첨부:
                           {% for a in child.attachments | compact_attachments %}
@@ -234,6 +269,7 @@
                           {% endfor %}
                         </div>
                       {% endif %}
+                      {% if child_refs %}</td><td class="reference-rail" width="32%" style="width:32%;vertical-align:top;padding-left:18px;border-left:1px solid #dce3eb;font-size:12px;line-height:1.6;">{{ references(child) }}</td></tr></table>{% endif %}
                     </li>
                   {% endfor %}
                 </ul>

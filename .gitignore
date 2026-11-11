@@ -18,3 +18,4 @@ logs/
 /.codex-staging/
 /data
 /reports/*.json
+/editorial/*.json

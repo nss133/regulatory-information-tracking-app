@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from bs4 import BeautifulSoup
 from jinja2 import Environment, FileSystemLoader
 
-from briefing.presentation import compact_attachments
+from briefing.presentation import compact_attachments, reference_attachments
 from briefing.render import RenderAttachment
 
 
@@ -28,6 +28,7 @@ class TestEmailPresentation(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         env = Environment(loader=FileSystemLoader(root / 'templates'), autoescape=True)
         env.filters['compact_attachments'] = compact_attachments
+        env.filters['reference_attachments'] = reference_attachments
         common = dict(item_id='a', is_updated=False, source_name_ko='기관',
                       category_label='보도자료', published_at='2026-11-09',
                       company_flag=False, deadlines=[], reason='', importance='high',
@@ -41,10 +42,11 @@ class TestEmailPresentation(unittest.TestCase):
         soup = BeautifulSoup(html, 'html.parser')
         self.assertFalse(soup.select('script'))
         self.assertEqual(len(soup.select('.item-summary br')), 2)
-        for a in soup.select('.item-attach a'):
+        self.assertEqual(len(soup.select('.reference-rail a')), 2)
+        for a in soup.select('.reference-rail a'):
             self.assertEqual(a['href'], common['attachments'][0].url)
             self.assertEqual(a['title'], common['attachments'][0].label)
-            self.assertEqual(a.get_text(), '보도자료 PDF')
+            self.assertEqual(a.get_text(), '보도자료 · PDF')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,21 @@
+{
+  "as_of": "2099-01-01",
+  "status": "draft",
+  "issues": [
+    {
+      "primary_item_id": "kftc:example-notice",
+      "sources": [
+        {
+          "item_id": "kftc:example-notice",
+          "url": "https://www.ftc.go.kr/",
+          "content_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "body_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "summary": null,
+      "stage": "",
+      "articles": [],
+      "deadlines": []
+    }
+  ]
+}
