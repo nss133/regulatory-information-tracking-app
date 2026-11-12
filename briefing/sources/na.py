@@ -239,13 +239,19 @@ class NaAssemblyConnector(SourceConnector):
         soup = soupify(html)
         items: list[FetchedItem] = []
 
-        for tr in soup.select("tr"):
-            tds = tr.find_all("td")
+        rows = [tr.find_all("td") for tr in soup.select("tr") if len(tr.find_all("td")) >= 3]
+        if milestone == '체계·자구심사' and rows:
+            if not any(len(tds) >= 8 and late_stage(tds[7].get_text(strip=True)) for tds in rows):
+                raise ValueError('국회 체계·자구심사 검색조건과 응답 상태가 일치하지 않음')
+        for tds in rows:
             if len(tds) < 3:
                 continue
 
             if milestone == '체계·자구심사' and (len(tds) < 8 or not late_stage(tds[7].get_text(strip=True))):
-                raise ValueError('국회 체계·자구심사 검색조건과 응답 상태가 일치하지 않음')
+                if len(tds) < 8 or tds[7].get_text(strip=True) != '소관위의결':
+                    raise ValueError('국회 체계·자구심사 검색조건과 응답 상태가 일치하지 않음')
+                logging.getLogger(__name__).warning('국회 단계 혼재 행 제외: %s / %s', tds[0].get_text(strip=True), tds[7].get_text(strip=True) if len(tds) >= 8 else '단계 누락')
+                continue
 
             # 심사진행상태 필터 (td[7])
             if state_filter is not None:
