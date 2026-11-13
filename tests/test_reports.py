@@ -48,8 +48,8 @@ class ReportsTests(unittest.TestCase):
         self.assertIn('상세 리포트 PDF가 첨부되어 있습니다',rendered.html)
         self.assertIn(atts[0].filename,rendered.html)
         cfg=load_config(ROOT/'config.yaml').email
-        with patch('briefing.emailer.smtplib.SMTP') as smtp, patch.object(type(cfg.smtp),'password',return_value='test'):
-            send_email(cfg=cfg,subject='검증',html_body=rendered.html,text_body='검증',attachments=atts)
+        with patch('briefing.emailer.smtplib.SMTP') as smtp, patch.object(type(cfg.smtp),'password',return_value='test'), patch('briefing.emailer.validate_review'):
+            send_email(cfg=cfg,subject='검증',html_body=rendered.html,text_body='검증',attachments=atts,review_context={'day':'2026-11-09','rendered':rendered,'items':[it],'editorial_path':'unused'})
         msg=smtp.return_value.__enter__.return_value.send_message.call_args[0][0]
         mime=list(msg.iter_attachments())
         self.assertEqual(mime[0].get_content_type(),'application/pdf')
@@ -147,8 +147,8 @@ class ReportRunIntegrationTests(unittest.TestCase):
                 Path('reports').mkdir();Path('reports/ready.json').write_text(json.dumps(r,ensure_ascii=False))
                 with patch('briefing.cli._fetch_all',return_value=([],[],{})), \
                      patch('briefing.cli._enrich'), patch('briefing.cli.run_sanity_checks',return_value=[]), \
-                     patch('briefing.cli.send_email',return_value='<test>') as send:
-                    self.assertEqual(_cmd_run(SimpleNamespace(send_anyway=False),cfg,conn,run_id),0)
+                     patch('briefing.cli.send_email',return_value='<test>') as send, patch('briefing.cli.validate_review',return_value={'status':'reviewed'}):
+                    self.assertEqual(_cmd_run(SimpleNamespace(send_anyway=False,manual_request=True),cfg,conn,run_id),0)
                 attachments=send.call_args.kwargs['attachments']
                 ledger=conn.execute('SELECT * FROM delivery_runs WHERE run_id=?',(run_id,)).fetchone()
                 self.assertEqual(ledger['stage'],'delivered')

@@ -1,6 +1,6 @@
 # Legal·Compliance Signal
 
-금융/노동/개인정보/인권/공정거래 관련 공지(보도자료·입법/행정예고 등)를 매일 자동 수집해 **신규/변경분만** 모아 이메일로 발송하는 스크립트형 앱입니다.
+금융/노동/개인정보/인권/공정거래 관련 공지(보도자료·입법/행정예고 등)를 사용자 요청 시 수집하고 **당일 편집·검수를 완료한 신규/변경분만** 이메일로 발송하는 스크립트형 앱입니다.
 
 ## 지원 소스(9)
 - 금융위원회(FSC): 보도자료(RSS), 입법예고/규정변경예고(HTML)
@@ -22,6 +22,10 @@
 주요 항목의 원문은 제목 링크로 제공하고, 첨부자료·검토한 관련 기사는 오른쪽에 표시한다. 좁은 화면에서는 아래로 내려가며 LOW의 기존 요약·첨부 배치는 유지한다. 같은 기관·개정 대상·예고 단계가 확인되는 보도와 예고문은 중요도 구간을 넘어 한 사안으로 묶되 모든 원문 ID를 발송 기록에 남긴다.
 
 관련 기사는 검색 API를 새로 붙이지 않고 당일 검토한 `editorial/YYYY-MM-DD.json`에서 읽는다. 원문 버전·기준일·기사 날짜·확인일·읽을 이유를 검증하고 실제 발송본에 편집 근거를 보관한다. 초안·검증·발송 없는 미리보기는 [편집 운영 안내](docs/EDITORIAL.md)를 따른다.
+
+## 수동 발송·검수 필수 (2026.11.13.)
+
+예약 자동발송은 중단했다. 기존 launchd/cron 호출도 `--manual-request` 없이는 발송하지 않는다. 당일 ready 편집본과 최종 검수 기록이 없거나 검수 후 내용·수신자가 바뀌면 SMTP 전에 중단한다. 상세 순서는 [편집 운영 안내](docs/EDITORIAL.md)의 최종 검수 절차를 따른다.
 
 ## 빠른 시작
 ### 1) 가상환경 생성 및 의존성 설치
@@ -62,7 +66,7 @@ export GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
 
 ```bash
 python -m briefing preview --config config.yaml --out daily.html
-python -m briefing run --config config.yaml
+python -m briefing run --manual-request --config config.yaml
 ```
 
 `cron/launchd`에서 `scripts/run_daily.sh`를 사용하려면:
@@ -127,7 +131,7 @@ crontab -e
 아래 한 줄 추가(경로는 환경에 맞게 조정):
 
 ```bash
-30 8 * * * cd "/Users/nsss/Library/Mobile Documents/com~apple~CloudDocs/cursor/news clipping" && .venv/bin/python -m briefing run --config config.yaml >> logs/briefing.log 2>&1
+30 8 * * * cd "/Users/nsss/Library/Mobile Documents/com~apple~CloudDocs/cursor/news clipping" && .venv/bin/python -m briefing run --manual-request --config config.yaml >> logs/briefing.log 2>&1
 ```
 
 ## Docker(옵션)

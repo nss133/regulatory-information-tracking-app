@@ -6,6 +6,7 @@ from email.message import EmailMessage
 
 from briefing.config import EmailConfig
 from briefing.reports import PdfAttachment
+from briefing.review_gate import validate_review
 
 
 def send_error_alert(*, cfg: EmailConfig, errors: list[str], run_date: str) -> None:
@@ -40,7 +41,11 @@ def send_email(
     *, cfg: EmailConfig, subject: str, html_body: str, text_body: str,
     message_id: str | None = None,
     attachments: tuple[PdfAttachment, ...] = (),
+    review_context: dict | None = None,
 ) -> str:
+    if not review_context or review_context['rendered'].html != html_body:
+        raise ValueError('검수된 본문과 발송 문맥이 없어 SMTP 발송을 차단함')
+    validate_review(**dict(review_context, recipients=cfg.to, attachments=attachments))
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = Address(display_name=cfg.from_name, addr_spec=cfg.from_email)

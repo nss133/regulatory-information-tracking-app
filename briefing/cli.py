@@ -59,7 +59,8 @@ from briefing.render import render_email, render_email_html
 from briefing.reports import prepare_reports, report_candidates
 from briefing.reports_cli import register_commands as register_report_commands
 from briefing.editorial import load_attachment_links, load_editorial
-from briefing.editorial_cli import register_commands as register_editorial_commands
+from briefing.review_gate import require_manual_request, require_editorial, validate_review
+from briefing.editorial_cli import register_commands as register_editorial_commands, last_delivery_items
 from briefing.sanity import append_log as append_sanity_log
 from briefing.sanity import run_sanity_checks
 from briefing.sources import build_connectors
@@ -525,6 +526,18 @@ def _enrich(conn, cfg, items) -> None:
             except Exception as e:
                 print(f"[deadline] 원문 확인 실패 {it.id}: {e}", file=sys.stderr)
 
+        # 개인정보위의 JS 첨부 버튼도 기존 요약 유무와 무관하게 확인한다.
+        if it.source == 'pipc' and importance in ('high', 'medium'):
+            try:
+                page_body, links = extract_page_content(http, it.url)
+                if page_body:
+                    update_body_text(conn, item_id=it.id, body_text=page_body)
+                for label, att_url in links:
+                    upsert_attachment_record(conn, item_id=it.id, source_url=att_url,
+                                             label=label, tz_name=cfg.timezone)
+            except Exception as e:
+                print(f'[attachments] 개인정보위 첨부 확인 실패 {it.id}: {e}', file=sys.stderr)
+
         # 국회(na) 본회의 가결 의안은 실제 법령 통과를 의미하므로 HIGH 강제
         if it.source == "na" and (it.title or "").startswith("[본회의 가결]"):
             importance = "high"
@@ -676,6 +689,7 @@ def _enrich(conn, cfg, items) -> None:
 
 
 def _cmd_run(args, cfg, conn, run_id: str) -> int:
+    require_manual_request(args)
 
     import time as _time
     _t_run = _time.perf_counter()
@@ -866,6 +880,12 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                 )
                 return 1
 
+    delivery_review = None
+    if cfg.email.enabled and visible_pending:
+        delivery_review = validate_review(day=run_date, rendered=rendered, items=visible_pending,
+                        recipients=cfg.email.to, editorial_path=Path('editorial') / f'{run_date[:10]}.json',
+                        attachments=report_attachments)
+
     if cfg.email.enabled:
         if not visible_pending:
             mark_suppressed(conn, suppressed_ids, tz_name=cfg.timezone)
@@ -893,6 +913,7 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                 items=visible_pending,
                 attachments=report_attachments,
                 editorial_issues=editorial_issues,
+                delivery_review=delivery_review,
             )
             update_delivery_run(conn, run_id, archive_path=str(archive_path))
             prepare_delivery_attempt(
@@ -903,6 +924,8 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
                     cfg=cfg.email, subject=subject, html_body=html, text_body=text,
                     message_id=message_id,
                     attachments=report_attachments,
+                    review_context=dict(day=run_date, rendered=rendered, items=visible_pending,
+                                        editorial_path=Path('editorial') / f'{run_date[:10]}.json'),
                 )
             except Exception as smtp_error:
                 # 명시적인 SMTP 예외는 재시도 가능한 실패다. send_email이 정상 반환한
@@ -955,7 +978,9 @@ def _cmd_run(args, cfg, conn, run_id: str) -> int:
 
 
 def cmd_run(args) -> int:
+    require_manual_request(args)
     cfg = load_config(args.config)
+    require_editorial(now_iso(cfg.timezone))
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
     run_id = create_delivery_run(conn, tz_name=cfg.timezone)
@@ -1117,18 +1142,18 @@ def cmd_reset_sent(args) -> int:
 
 
 def cmd_resend_last(args) -> int:
+    require_manual_request(args)
     cfg = load_config(args.config)
+    require_editorial(now_iso(cfg.timezone))
     conn = connect(cfg.storage.sqlite_path)
     init_db(conn)
 
-    batch = select_last_sent_batch(conn)
+    batch = last_delivery_items(conn)
     if not batch:
         print("직전 발송 배치를 찾지 못했습니다. 먼저 `run`을 1회 실행하세요.")
         return 1
 
-    # 요약/중요도는 최신 로직으로 다시 채움(LLM OFF이면 휴리스틱)
-    _enrich(conn, cfg, batch)
-    batch = select_last_sent_batch(conn)
+    # 검수한 보관본을 재현한다. 발송 직전 재요약으로 검수 내용을 바꾸지 않는다.
 
     run_date = now_iso(cfg.timezone)
     subject = f"{cfg.email.subject_prefix} {run_date[:10]} (재발송: {len(batch)}건)"
@@ -1141,9 +1166,15 @@ def cmd_resend_last(args) -> int:
                             report_attachments=reports, editorial_issues=editorial_issues,
                             attachment_links=attachment_links)
     html, text = rendered.html, rendered.text
+    if cfg.email.enabled:
+        validate_review(day=run_date, rendered=rendered, items=[it for it in batch if it.id in rendered.visible_item_ids],
+                        recipients=cfg.email.to, editorial_path=Path('editorial') / f'{run_date[:10]}.json',
+                        attachments=reports)
 
     if cfg.email.enabled:
-        send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text, attachments=reports)
+        send_email(cfg=cfg.email, subject=subject, html_body=html, text_body=text, attachments=reports,
+                   review_context=dict(day=run_date, rendered=rendered, items=[it for it in batch if it.id in rendered.visible_item_ids],
+                                       editorial_path=Path('editorial') / f'{run_date[:10]}.json'))
         print(f"재발송 완료: {len(batch)}건")
     else:
         print("email.enabled=false 이므로 발송하지 않았습니다.")
@@ -1397,6 +1428,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--config", required=True, help="config.yaml 경로")
         if name == "preview":
             sp.add_argument("--out", required=True, help="HTML 저장 경로")
+        if name in ("run", "resend-last"):
+            sp.add_argument("--manual-request", action="store_true", help="명시적인 수동 발송 요청")
         if name == "run":
             sp.add_argument(
                 "--send-anyway",

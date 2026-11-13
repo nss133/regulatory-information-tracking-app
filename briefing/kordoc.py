@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import subprocess
 import tempfile
 import time
@@ -31,13 +32,25 @@ def find_attachment_links(soup, base_url: str) -> list[tuple[str, str]]:
     BeautifulSoup으로 파싱된 페이지에서 첨부파일 링크를 추출합니다.
     Returns: list of (label, absolute_url)
     """
-    from urllib.parse import urljoin
+    from urllib.parse import urljoin, urlparse, urlencode
 
     seen: set[str] = set()
     results: list[tuple[str, str]] = []
 
     for a in soup.find_all("a", href=True):
         href = str(a["href"]).strip()
+        # 개인정보위는 실제 파일명과 다운로드 매개변수를 onclick/alt에 둔다.
+        # 함수를 실행하지 않고 공식 동일 출처의 fileList 폼만 해석한다.
+        if (urlparse(base_url).hostname or '').removeprefix('www.') == 'pipc.go.kr':
+            call = re.fullmatch(r"(?:javascript:)?fn_egov_downFile\('([A-Za-z0-9_]+)'\s*,\s*'(\d+)'\s*,\s*'(pdf|hwpx|hwp)'\)\s*;?", a.get('onclick','').strip())
+            form = soup.find('form', attrs={'name':'fileList'})
+            if call and form and a.get('alt'):
+                action = urljoin(base_url, form.get('action','')).split(';',1)[0]
+                if urlparse(action).hostname == urlparse(base_url).hostname and urlparse(action).path == '/np/cmm/fms/FileDown.do':
+                    full_url = action + '?' + urlencode(dict(atchFileId=call[1],fileSn=call[2],fileExtsn=call[3]))
+                    if full_url not in seen:
+                        results.append((a['alt'][:200],full_url));seen.add(full_url)
+                    continue
         if not href or href.startswith("javascript:") or href.startswith("#"):
             continue
 

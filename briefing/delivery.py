@@ -30,6 +30,7 @@ def archive_delivery(
     items: list[StoredItem],
     attachments: tuple[PdfAttachment, ...] = (),
     editorial_issues: tuple = (),
+    delivery_review: dict | None = None,
 ) -> Path:
     """실제 SMTP에 넘길 HTML과 항목 원장을 같은 이름으로 보관한다."""
     day_dir = Path(archive_root) / run_date[:10]
@@ -62,6 +63,7 @@ def archive_delivery(
         "html_file": html_path.name,
         "attachments": attachment_manifest,
         "editorial": [issue.manifest() for issue in editorial_issues],
+        "delivery_review": delivery_review,
         "items": [
             {
                 "id": item.id,

@@ -64,6 +64,18 @@ def restore_archive_presentation(items, manifest, html):
     return items
 
 
+def last_delivery_items(conn):
+    row = conn.execute("SELECT archive_path FROM delivery_runs WHERE stage='delivered' ORDER BY started_at DESC LIMIT 1").fetchone()
+    if not row or not row['archive_path']:
+        raise ValueError('검수할 실제 발송 보관본이 없음')
+    path = Path(row['archive_path']); manifest = json.loads(path.read_text())
+    items = _items(conn, [r['id'] for r in manifest['items']])
+    versions = {r['id']:r['content_hash'] for r in manifest['items']}
+    if any(i.content_hash != versions[i.id] for i in items):
+        raise ValueError('발송 후 원문 버전 변경. 재발송 자료 재검토 필요')
+    return restore_archive_presentation(items, manifest, (path.parent / manifest['html_file']).read_text())
+
+
 def cmd_init(args):
     cfg = load_config(args.config)
     with closing(_connect(cfg)) as conn:
@@ -127,7 +139,45 @@ def cmd_preview(args):
     return 0
 
 
+def cmd_review(args):
+    from briefing.review_gate import require_editorial, snapshot, save_review
+    from briefing.reports import prepare_reports
+    cfg = load_config(args.config)
+    stamp = now_iso(cfg.timezone)
+    path = require_editorial(stamp)
+    with closing(_connect(cfg)) as conn:
+        items = (last_delivery_items(conn) if args.resend_last else
+                 select_pending_for_email(conn, max_days_since_published=cfg.filter_config.max_days_since_published))
+        issues = load_editorial(path, items, as_of=stamp)
+        links = load_attachment_links(conn, items)
+    draft = render_email(items=items, template_dir='templates', subject='', run_date=stamp,
+                         editorial_issues=issues, attachment_links=links)
+    visible = [i for i in items if i.id in draft.visible_item_ids]
+    if not visible:
+        raise ValueError('발송할 검수 대상이 없음')
+    reports = tuple(prepare_reports(visible))
+    subject = (f'{cfg.email.subject_prefix} {stamp[:10]} (재발송: {len(items)}건)' if args.resend_last else
+               f'{cfg.email.subject_prefix} {stamp[:10]} (브리핑 {draft.visible_count}건 · 수집 {len(items)}건)')
+    rendered = render_email(items=items, template_dir='templates', subject=subject, run_date=stamp,
+                            report_attachments=reports, editorial_issues=issues, attachment_links=links)
+    state = snapshot(day=stamp, rendered=rendered, items=visible, recipients=cfg.email.to,
+                     editorial_path=path, attachments=reports)
+    review_path = Path('logs/reviews') / f'{stamp[:10]}.json'
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    output = review_path.with_suffix('.html'); output.write_text(rendered.html)
+    save_review(path=review_path, state=state, note=args.note,
+                no_references_reason=args.no_references_reason, reviewed_at=stamp)
+    print(f'최종 검수 기록: {review_path} · 오른쪽 자료 {state["reference_columns"]}개 · 관련 보도 {state["related_articles"]}건')
+    print(f'발송 없는 최종 본문: {output}')
+    return 0
+
+
 def register_commands(sub):
+    p = sub.add_parser('delivery-review', help='당일 최종 본문·원문·첨부·수신자 검수 기록(발송 없음)')
+    p.add_argument('--config', required=True); p.add_argument('--note', required=True)
+    p.add_argument('--no-references-reason', default='')
+    p.add_argument('--resend-last', action='store_true')
+    p.set_defaults(_fn=cmd_review)
     p = sub.add_parser('editorial-init', help='사안·기사 큐레이션 초안 작성(읽기 전용)')
     p.add_argument('--config', required=True); p.add_argument('--date')
     p.add_argument('--item-id', action='append', required=True)

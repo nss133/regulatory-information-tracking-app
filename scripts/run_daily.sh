@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 예약 실행은 수동 발송 요청으로 취급하지 않는다. DB·Keychain 접근 전에 중단한다.
+if [[ "${1:-}" != "--manual-request" ]]; then
+  echo "INFO: 자동발송 중단. 사용자 요청과 당일 편집·검수 후 --manual-request로 실행하세요."
+  exit 0
+fi
+shift
+
 # launchd(WorkingDirectory) 또는 스크립트 경로 기준
 ROOT_DIR="$(pwd)"
 [[ -d "$ROOT_DIR/.venv" ]] || ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
@@ -91,7 +98,7 @@ if ls -lO data/ 2>/dev/null | grep -q dataless; then
   echo "INFO: data/ 다운로드 완료." >&2
 fi
 
-"$VENV_PYTHON" -m briefing run --config "$CONFIG"
+"$VENV_PYTHON" -m briefing run --manual-request --config "$CONFIG"
 
 # 주 1회(월요일) DB 스냅샷 백업 — DB 본체는 iCloud 밖(Application Support)에 있으므로
 # 재해 대비 사본만 iCloud 프로젝트 폴더에 남긴다. sqlite3 .backup은 온라인 백업이라 안전.
