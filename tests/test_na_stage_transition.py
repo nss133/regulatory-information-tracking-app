@@ -24,3 +24,10 @@ class StageTransitionTests(unittest.TestCase):
  def test_mixed_unfiltered_early_reception_still_fails(self):
   with self.assertRaises(ValueError):
    NaAssemblyConnector(None)._parse_sch_html('<table>'+row('1','체계자구심사')+row('2','소관위접수')+'</table>',milestone='체계·자구심사',date_col=None)
+
+ def test_plenary_amendment_in_review_results_is_a_later_stage(self):
+  from briefing.legislation import late_stage, reportable_legislation
+  self.assertTrue(late_stage('본회의수정안'))
+  items=NaAssemblyConnector(None)._parse_sch_html('<table>'+row('1','체계자구심사')+row('2','본회의수정안')+'</table>',milestone='체계·자구심사',date_col=None)
+  self.assertEqual(len(items),2)
+  self.assertTrue(all(reportable_legislation(item) for item in items))
